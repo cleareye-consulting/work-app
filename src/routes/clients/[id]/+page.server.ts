@@ -13,7 +13,6 @@ export async function load({params}) {
 export const actions = {
 	default: async ({request}) => {
 		const data = await request.formData()
-		console.log(data)
 		const client: Client =
   	{
 			id: +(data.get('id') as string),
