@@ -1,7 +1,10 @@
 <script lang="ts">
 	import {marked} from 'marked';
 	let { value = $bindable() } = $props()
-	let htmlPreview = $derived(marked.parse(value))
+	let htmlPreview = $derived(marked.parse(value, {
+		gfm: true,        // Enable GitHub Flavored Markdown (often includes tables)
+		breaks: true,     // Convert single line breaks to <br>
+	}))
 	let mode = $state<'edit' | 'preview'>('edit')
 </script>
 
@@ -21,11 +24,14 @@
 			id="markdown-input"
 			bind:value
 			name="content"
-			class={`block w-full h-80 p-4 border rounded-md resize-none ${mode === 'preview' ? 'hidden': ''}`}
+			class={`block w-full h-120 p-4 border rounded-md resize-none ${mode === 'preview' ? 'hidden': ''}`}
 			placeholder="Start typing your Markdown here..."
 		></textarea>
-		<div class={`block w-full h-80 p-4 border rounded-md resize-none ${mode === 'edit' ? 'hidden': ''}`}>
-			{@html htmlPreview}
+		<div class={`block w-full h-120 p-4 border rounded-md overflow-y-auto resize-none ${mode === 'edit' ? 'hidden': ''}`}>
+			<div class="prose max-w-none">
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+				{@html htmlPreview}
+			</div>
 		</div>
 	</div>
 
