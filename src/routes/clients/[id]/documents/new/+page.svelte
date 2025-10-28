@@ -1,8 +1,8 @@
 <script lang="ts">
 	import ContentHeader from '../../../../../components/ContentHeader.svelte';
 	import MarkdownEditor from '../../../../../components/MarkdownEditor.svelte';
-	import TextInput from '../../../../../components/TextInput.svelte';
-	import SubmitButton from '../../../../../components/SubmitButton.svelte';
+	import Button from '../../../../../components/Button.svelte';
+	import Input from '../../../../../components/Input.svelte';
 	let name = $state('')
 	let {data} = $props() as {data: {clientId: string}}
 	let content = $state('')
@@ -12,14 +12,12 @@
 
 <form method="POST">
 	<input type="hidden" name="clientId" value={data.clientId} />
+	<input type="hidden" id="type" name="type" value="text/markdown"/>
 <div>
-	<TextInput id="name" name="name" label="Name" value={name} />
+	<Input name="name" value={name}>Name</Input>
 </div>
 <div>
-	<TextInput id="type" name="type" label="Type" value="text/markdown"/>
-</div>
-<div>
-	<SubmitButton>Add</SubmitButton>
+	<Button>Add</Button>
 </div>
 <MarkdownEditor bind:value={content}></MarkdownEditor>
 </form>

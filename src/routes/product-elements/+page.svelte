@@ -2,6 +2,10 @@
 	import ContentHeader from '../../components/ContentHeader.svelte';
 	import { goto } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
+	import Table from '../../components/Table.svelte';
+	import TH from '../../components/TH.svelte';
+	import TD from '../../components/TD.svelte';
+	import A from '../../components/A.svelte';
 
 	let { data } = $props();
 	let { clients } = data;
@@ -63,11 +67,12 @@
 		{/if}
 	</div>
 
-	<table class="w-full border-collapse table-fixed border border-gray-300">
+	<Table>
 		<thead>
-		<tr class="border-b">
-			<th class="text-left p-2">Name</th>
-			<th class="text-left p-2">Client</th>
+		<tr>
+			<TH>Name</TH>
+			<TH>Client</TH>
+			<TH>Parent</TH>
 		</tr>
 		</thead>
 		<tbody>
@@ -76,10 +81,13 @@
 				class="border-b hover:bg-gray-50 cursor-pointer"
 				onclick={() => handleDrillDown(element.id)}
 			>
-				<td class="p-2">{element.name}</td>
-				<td class="p-2">{element.clientName}</td>
+				<TD>{element.name}</TD>
+				<TD>{element.clientName}</TD>
+				<TD>{element.parentProductElementName}</TD>
 			</tr>
 		{/each}
 		</tbody>
-	</table>
+	</Table>
 </div>
+<hr/>
+<A href={`/product-elements/new?parentId=${data.currentParentId ?? ''}&clientId=${data.currentClientId ?? ''}`}>New Product Element</A>

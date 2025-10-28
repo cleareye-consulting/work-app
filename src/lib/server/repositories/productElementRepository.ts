@@ -18,3 +18,21 @@ export async function getProductElements(parentId: number | null, clientId: numb
 	})
 
 }
+
+export async function getProductElementById(id: number): Promise<ProductElement | null> {
+	const pool = getDB()
+	const sql = `select pe.id, pe.name, pe.client_id, c.name as client_name
+							 from product_elements as pe inner join clients as c on pe.client_id = c.id
+							 where pe.id = $1;`
+	const result = await pool.query(sql, [id])
+	if (result.rows.length === 0) {
+		return null
+	}
+	const row = result.rows[0]
+	return {
+		id: row.id,
+		name: row.name,
+		clientId: row.client_id,
+		clientName: row.client_name
+	}
+}

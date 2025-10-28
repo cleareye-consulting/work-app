@@ -1,9 +1,9 @@
-<script>
+<script lang="ts">
 import ContentHeader from '../../../components/ContentHeader.svelte';
-import TextInput from '../../../components/TextInput.svelte';
 import Checkbox from '../../../components/Checkbox.svelte';
-import SubmitButton from '../../../components/SubmitButton.svelte';
+import Button from '../../../components/Button.svelte';
 import A from '../../../components/A.svelte';
+import Input from '../../../components/Input.svelte';
 let {data} = $props()
 </script>
 
@@ -12,13 +12,13 @@ let {data} = $props()
 <form method="POST">
 	<input type="hidden" id="id" name="id" value={data.client.id} />
 	<div>
-		<TextInput id="name" name="name" label="Name" value={data.client.name} />
+		<Input name="name" value={data.client.name}>Name</Input>
 	</div>
 	<div>
-		<Checkbox id="isActive" name="isActive" label="Active" isChecked={data.client.isActive} />
+		<Checkbox id="isActive" name="isActive" checked={data.client.isActive}>Active</Checkbox>
 	</div>
 	<div>
-		<SubmitButton>Update</SubmitButton>
+		<Button>Update</Button>
 	</div>
 </form>
 <hr class="my-4" />
@@ -27,7 +27,7 @@ let {data} = $props()
 <h3 class="text-2xl">Work Items</h3>
 <hr class="my-4" />
 <h3 class="text-2xl">Documents</h3>
-{#each data.client.documents as document, index (document.id)}
+{#each (data.client.documents ?? []) as document (document.id)}
 	<div><A href="/clients/{data.client.id}/documents/{document.id}">{document.name}</A></div>
 {/each}
 <A href="/clients/{data.client.id}/documents/new">New Document</A>

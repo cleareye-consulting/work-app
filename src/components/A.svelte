@@ -1,6 +1,6 @@
 <script>
-	let {href, children} = $props()
+	const { children, class: customClass = '', ...rest } = $props();
 </script>
 
-<a class="text-blue-600 underline hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75"
-	 {href}>{@render children()}</a>
+<a class="text-blue-600 underline hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 {customClass}"
+	 {...rest}>{@render children?.()}</a>

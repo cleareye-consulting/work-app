@@ -21,7 +21,7 @@ export async function addClient(item: Client): Promise<number> {
 	return result.rows[0][0]
 }
 
-export async function getClientById(id: string): Promise<Client> {
+export async function getClientById(id: number): Promise<Client> {
 	const pool = getDB()
 	const sql = "select id, name, is_active from clients where id = $1;"
 	const result = await pool.query(sql, [id]);
@@ -34,7 +34,7 @@ export async function getClientById(id: string): Promise<Client> {
 	}
 }
 
-async function getClientDocuments(clientId: string): Promise<ClientDocument[]>{
+async function getClientDocuments(clientId: number): Promise<ClientDocument[]>{
 	const pool = getDB()
 	const sql = "select id, client_id, name, type, content from client_documents where client_id = $1 order by id";
 	const result = await pool.query(sql, [clientId]);

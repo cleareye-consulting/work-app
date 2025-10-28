@@ -1,11 +1,18 @@
 <script lang="ts">
+	type EditMode = 'edit' | 'preview';
 	import {marked} from 'marked';
-	let { value = $bindable() } = $props()
+	let {
+		value = $bindable(),
+		initialMode = 'edit'
+	} = $props<{
+		value?: string;
+		initialMode?: EditMode; // Use the type alias here for type checking
+	}>();
 	let htmlPreview = $derived(marked.parse(value, {
 		gfm: true,        // Enable GitHub Flavored Markdown (often includes tables)
 		breaks: true,     // Convert single line breaks to <br>
 	}))
-	let mode = $state<'edit' | 'preview'>('edit')
+	let mode = $state<'edit' | 'preview'>(initialMode)
 </script>
 
 <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
