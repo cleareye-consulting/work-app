@@ -7,7 +7,7 @@ import Input from '../../../components/Input.svelte';
 let {data} = $props()
 </script>
 
-<ContentHeader pageTitle="Client" />
+<ContentHeader>Client: {data.client.name}</ContentHeader>
 
 <form method="POST">
 	<input type="hidden" id="id" name="id" value={data.client.id} />

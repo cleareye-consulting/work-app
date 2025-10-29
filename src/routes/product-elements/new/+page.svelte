@@ -6,7 +6,7 @@
 	const { data } = $props();
 </script>
 
-<ContentHeader pageTitle="New Product Element"/>
+<ContentHeader>New Product Element</ContentHeader>
 
 <form method="POST">
 	<input type="hidden" name="parentProductElementId" value={data.parentId}/>

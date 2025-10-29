@@ -8,7 +8,7 @@
 	let content = $state('')
 </script>
 
-<ContentHeader pageTitle="New Document" />
+<ContentHeader>New Document</ContentHeader>
 
 <form method="POST">
 	<input type="hidden" name="productElementId" value={data.productElementId} />

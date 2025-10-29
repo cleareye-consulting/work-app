@@ -4,7 +4,7 @@
 	const { data } = $props();
 </script>
 
-<ContentHeader pageTitle={`Product Element: ${data.productElement?.name}`} />
+<ContentHeader>Product Element: {data.productElement?.name}</ContentHeader>
 
 <h3 class="text-2xl">Components</h3>
 {#each (data.productElement?.children ?? []) as child (child.id)}

@@ -32,7 +32,7 @@
 	}
 </script>
 
-<ContentHeader pageTitle="Product Elements"/>
+<ContentHeader>Product Elements</ContentHeader>
 
 <div class="my-4">
 	<div class="mb-4 flex gap-4 items-center">

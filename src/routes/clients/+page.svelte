@@ -7,7 +7,7 @@
 	export let data
 </script>
 
-<ContentHeader pageTitle="Clients" />
+<ContentHeader>Clients</ContentHeader>
 <div class="my-4">
 	<Table>
 		<thead>

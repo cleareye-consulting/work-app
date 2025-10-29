@@ -1,10 +1,11 @@
 <script>
 	import ContentHeader from '../components/ContentHeader.svelte'
+	import A from '../components/A.svelte';
 </script>
 
-<ContentHeader pageTitle="Main Page" />
+<ContentHeader>Main Menu</ContentHeader>
 
 <ul>
-	<li><a href="/clients">Clients</a></li>
-	<li><a href="/product-elements">Product Elements</a></li>
+	<li><A href="/clients">Clients</A></li>
+	<li><A href="/product-elements">Product Elements</A></li>
 </ul>

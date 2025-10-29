@@ -8,7 +8,7 @@
 	let content = $state(data.document.content)
 </script>
 
-<ContentHeader pageTitle="Edit Document" />
+<ContentHeader>Document: {data.document.name}</ContentHeader>
 
 <form method="POST">
 	<input type="hidden" name="id" value="{data.document.id}"/>
