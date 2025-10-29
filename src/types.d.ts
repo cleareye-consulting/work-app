@@ -8,10 +8,12 @@ export interface Client {
 export interface ProductElement {
 	id?: number;
 	clientId: number;
-	clientName: string;
+	clientName?: string;
 	name: string;
 	parentProductElementId?: number;
 	parentProductElementName?: string;
+	documents?: ProductElementDocument[];
+	children?: ProductElement[];
 }
 
 export interface Document {
@@ -23,4 +25,8 @@ export interface Document {
 
 export interface ClientDocument extends Document {
 	clientId: number;
+}
+
+export interface ProductElementDocument extends Document {
+	productElementId: number;
 }

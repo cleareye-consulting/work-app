@@ -24,13 +24,6 @@
 		goto(`?${params}`);
 	}
 
-	function handleDrillDown(elementId: number) {
-		const params = new SvelteURLSearchParams(window.location.search);
-		params.set('parentId', elementId.toString());
-		// eslint-disable-next-line svelte/no-navigation-without-resolve
-		goto(`?${params}`);
-	}
-
 	function clearParentFilter() {
 		const params = new SvelteURLSearchParams(window.location.search);
 		params.delete('parentId');
@@ -44,27 +37,18 @@
 <div class="my-4">
 	<div class="mb-4 flex gap-4 items-center">
 		<div>
-			<label for="clientId" class="mr-2">Client:</label>
-			<select
-				id="clientFilter"
-				onchange={handleClientChange}
-				class="border rounded px-2 py-1"
-			>
-				<option value="">All Clients</option>
-				{#each clients as client, i (i)}
-					<option value={client.id} selected={client.id === data.currentClientId} >{client.name}</option>
-				{/each}
-			</select>
+		<label for="clientId" class="mr-2">Client:</label>
+		<select
+			id="clientFilter"
+			onchange={handleClientChange}
+			class="border rounded px-2 py-1"
+		>
+			<option value="">All Clients</option>
+			{#each clients as client, i (i)}
+				<option value={client.id} selected={client.id === data.currentClientId} >{client.name}</option>
+			{/each}
+		</select>
 		</div>
-
-		{#if data.currentParentId}
-			<button
-				onclick={clearParentFilter}
-				class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-			>
-				← Back to Top Level
-			</button>
-		{/if}
 	</div>
 
 	<Table>
@@ -77,11 +61,8 @@
 		</thead>
 		<tbody>
 		{#each data.productElements as element, i (i)}
-			<tr
-				class="border-b hover:bg-gray-50 cursor-pointer"
-				onclick={() => handleDrillDown(element.id)}
-			>
-				<TD>{element.name}</TD>
+			<tr class="border-b hover:bg-gray-50 cursor-pointer" >
+				<TD><A href="/product-elements/{element.id}">{element.name}</A></TD>
 				<TD>{element.clientName}</TD>
 				<TD>{element.parentProductElementName}</TD>
 			</tr>

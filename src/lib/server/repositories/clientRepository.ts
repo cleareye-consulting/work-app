@@ -34,7 +34,13 @@ export async function getClientById(id: number): Promise<Client> {
 	}
 }
 
-async function getClientDocuments(clientId: number): Promise<ClientDocument[]>{
+export async function updateClient(item: Client) {
+	const pool = getDB()
+	const sql = "update clients set name=$2, is_active=$3 where id=$1;"
+	await pool.query(sql, [item.id, item.name, item.isActive]);
+}
+
+export async function getClientDocuments(clientId: number): Promise<ClientDocument[]>{
 	const pool = getDB()
 	const sql = "select id, client_id, name, type, content from client_documents where client_id = $1 order by id";
 	const result = await pool.query(sql, [clientId]);
@@ -49,19 +55,6 @@ async function getClientDocuments(clientId: number): Promise<ClientDocument[]>{
 	});
 }
 
-export async function updateClient(item: Client) {
-	const pool = getDB()
-	const sql = "update clients set name=$2, is_active=$3 where id=$1;"
-	await pool.query(sql, [item.id, item.name, item.isActive]);
-}
-
-export async function addClientDocument(item: ClientDocument): Promise<number> {
-	const pool = getDB()
-	const sql = "insert into client_documents (client_id, name, type, content) values ($1, $2, $3, $4) returning id;"
-	const result = await pool.query(sql, [item.clientId, item.name, item.type, item.content]);
-	return result.rows[0].id
-}
-
 export async function getClientDocumentById(id: string): Promise<ClientDocument> {
 	const pool = getDB()
 	const sql = "select id, client_id, name, type, content from client_documents where id = $1;"
@@ -74,6 +67,13 @@ export async function getClientDocumentById(id: string): Promise<ClientDocument>
 		clientId: row.client_id,
 		content: row.content
 	}
+}
+
+export async function addClientDocument(item: ClientDocument): Promise<number> {
+	const pool = getDB()
+	const sql = "insert into client_documents (client_id, name, type, content) values ($1, $2, $3, $4) returning id;"
+	const result = await pool.query(sql, [item.clientId, item.name, item.type, item.content]);
+	return result.rows[0].id
 }
 
 export async function updateClientDocument(item: ClientDocument) {
