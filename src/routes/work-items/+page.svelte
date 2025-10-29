@@ -25,7 +25,7 @@
 	}
 </script>
 
-<ContentHeader>Product Elements</ContentHeader>
+<ContentHeader>Work Items</ContentHeader>
 
 <div class="my-4">
 	<div class="mb-4 flex gap-4 items-center">

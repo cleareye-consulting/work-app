@@ -16,6 +16,17 @@ export interface ProductElement {
 	children?: ProductElement[];
 }
 
+export interface WorkItem {
+	id?: number;
+	name: string;
+	workItemTypeId: number;
+	workItemTypeName?: string;
+	clientId: number;
+	clientName?: string;
+	parentId?: number;
+	parentName?: string;
+}
+
 export interface Document {
 	id?: number;
 	name: string;

@@ -8,7 +8,7 @@ export async function getProductElements(parentId: number | null, clientId: numb
 		from product_elements as pe inner join clients as c on pe.client_id = c.id 
 		where ($1::int is null and pe.parent_product_element_id is null or $1::int is not null and pe.parent_product_element_id = $1::int)
 			and ($2::int is null or pe.client_id = $2::int)
-			order by pe.id;`
+		order by pe.id;`
 	const result = await pool.query(sql, [parentId, clientId]);
 	return result.rows.map(row => {
 		return {
