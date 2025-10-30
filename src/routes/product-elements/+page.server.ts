@@ -1,5 +1,8 @@
 import { getClients } from '$lib/server/repositories/clientRepository';
-import { getWorkItemById, getWorkItems } from '$lib/server/repositories/workItemRepository';
+import {
+	getProductElementById,
+	getProductElements
+} from '$lib/server/repositories/productElementRepository';
 
 export async function load({url})  {
 	// Read query parameters from the URL
@@ -9,10 +12,10 @@ export async function load({url})  {
 	// Convert string parameters to number or null, ensuring null is passed if empty
 	const currentParentId = parentIdParam ? parseInt(parentIdParam, 10) : null;
 	const currentClientId = clientIdParam ? parseInt(clientIdParam, 10) : null;
-	const currentParent = currentParentId ? await getWorkItemById(currentParentId) : null;
+	const currentParent = currentParentId ? await getProductElementById(currentParentId) : null;
 
 	// Call the database function with the filters
-	const productElements = await getWorkItems(currentParentId, currentClientId);
+	const productElements = await getProductElements(currentParentId, currentClientId);
 
 	 const clients = await getClients();
 

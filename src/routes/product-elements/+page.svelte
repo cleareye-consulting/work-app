@@ -49,7 +49,6 @@
 		<tr>
 			<TH>Name</TH>
 			<TH>Client</TH>
-			<TH>Parent</TH>
 		</tr>
 		</thead>
 		<tbody>
@@ -57,7 +56,6 @@
 			<tr class="border-b hover:bg-gray-50 cursor-pointer" >
 				<TD><A href="/product-elements/{element.id}">{element.name}</A></TD>
 				<TD>{element.clientName}</TD>
-				<TD>{element.parentProductElementName}</TD>
 			</tr>
 		{/each}
 		</tbody>

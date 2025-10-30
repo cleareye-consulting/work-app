@@ -49,19 +49,17 @@
 		<tr>
 			<TH>Name</TH>
 			<TH>Client</TH>
-			<TH>Parent</TH>
 		</tr>
 		</thead>
 		<tbody>
-		{#each data.productElements as element, i (i)}
+		{#each data.workItems as element, i (i)}
 			<tr class="border-b hover:bg-gray-50 cursor-pointer" >
-				<TD><A href="/product-elements/{element.id}">{element.name}</A></TD>
+				<TD><A href="/work-items/{element.id}">{element.name}</A></TD>
 				<TD>{element.clientName}</TD>
-				<TD>{element.parentProductElementName}</TD>
 			</tr>
 		{/each}
 		</tbody>
 	</Table>
 </div>
 <hr/>
-<A href={`/product-elements/new?parentId=${data.currentParentId ?? ''}&clientId=${data.currentClientId ?? ''}`}>New Product Element</A>
+<A href={`/work-items/new?parentId=${data.currentParentId ?? ''}&clientId=${data.currentClientId ?? ''}`}>New Work Item</A>
