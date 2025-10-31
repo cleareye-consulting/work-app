@@ -19,12 +19,13 @@ export interface ProductElement {
 export interface WorkItem {
 	id?: number;
 	name: string;
-	workItemTypeId: number;
-	workItemTypeName?: string;
+	type: string;
+	status: string;
 	clientId: number;
 	clientName?: string;
 	parentId?: number;
 	parentName?: string;
+	productElementIds?: number[];
 	documents?: WorkItemDocument[];
 	children?: WorkItem[];
 }
@@ -46,9 +47,4 @@ export interface ProductElementDocument extends Document {
 
 export interface WorkItemDocument extends Document {
 	workItemId: number;
-}
-
-export interface WorkItemType {
-	id?: number;
-	name: string;
 }

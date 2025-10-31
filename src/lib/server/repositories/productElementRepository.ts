@@ -18,7 +18,6 @@ export async function getProductElements(parentId: number | null, clientId: numb
 			name: row.name
 		}
 	})
-
 }
 
 export async function getProductElementById(id: number): Promise<ProductElement | null> {
@@ -89,4 +88,44 @@ export async function updateProductElementDocument(item: ProductElementDocument)
 	const pool = getDB()
 	const sql = "update product_element_documents set name=$2, type=$3, content=$4 where id=$1;"
 	await pool.query(sql, [item.id, item.name, item.type, item.content]);
+}
+
+export async function getProductElementsForWorkItem(workItemId: number): Promise<ProductElement[]> {
+	const pool = getDB()
+
+	const sql = `
+		select pe.id, pe.name, pe.client_id, c.name as client_name 
+		from product_elements as pe 
+			inner join clients as c on pe.client_id = c.id 
+			inner join work_item_product_elements as wipe on pe.id = wipe.product_element_id 
+		where wipe.work_item_id = $1
+		order by pe.id;`
+	const result = await pool.query(sql, [workItemId]);
+	return result.rows.map(row => {
+		return {
+			id: row.id,
+			clientId: row.client_id,
+			clientName: row.client_name,
+			name: row.name
+		}
+	})
+}
+
+export async function getAllProductElementsForClient(clientId: number | null): Promise<ProductElement[]> {
+	const pool = getDB()
+	const sql = `
+		select pe.id, pe.name, pe.client_id, c.name as client_name, pe.parent_product_element_id
+		from product_elements as pe inner join clients as c on pe.client_id = c.id 
+		where (pe.client_id = $1)
+		order by pe.id;`
+	const result = await pool.query(sql, [clientId]);
+	return result.rows.map(row => {
+		return {
+			id: row.id,
+			clientId: row.client_id,
+			clientName: row.client_name,
+			name: row.name,
+			parentProductElementId: row.parent_product_element_id
+		}
+	})
 }

@@ -14,7 +14,7 @@ export async function load({url})  {
 	// Call the database function with the filters
 	const workItems = await getWorkItems(currentParentId, currentClientId);
 
-	 const clients = await getClients();
+	const clients = await getClients();
 
 	return {
 		workItems,

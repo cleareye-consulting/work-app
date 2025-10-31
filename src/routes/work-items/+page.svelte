@@ -48,6 +48,8 @@
 		<thead>
 		<tr>
 			<TH>Name</TH>
+			<TH>Type</TH>
+			<TH>Status</TH>
 			<TH>Client</TH>
 		</tr>
 		</thead>
@@ -55,6 +57,8 @@
 		{#each data.workItems as element, i (i)}
 			<tr class="border-b hover:bg-gray-50 cursor-pointer" >
 				<TD><A href="/work-items/{element.id}">{element.name}</A></TD>
+				<TD>{element.type}</TD>
+				<TD>{element.status}</TD>
 				<TD>{element.clientName}</TD>
 			</tr>
 		{/each}

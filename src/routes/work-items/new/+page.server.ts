@@ -3,8 +3,13 @@ import { redirect } from '@sveltejs/kit';
 import {
 	addWorkItem,
 	getWorkItemById,
-	getWorkItemTypes
 } from '$lib/server/repositories/workItemRepository';
+import { getAllProductElementsForClient } from '$lib/server/repositories/productElementRepository';
+import {
+	flatMapClientProductElements,
+	workItemStatuses,
+	workItemTypes
+} from '$lib/server/utils';
 
 export async function load({url})  {
 	const clientIdParam = url.searchParams.get('clientId');
@@ -16,14 +21,17 @@ export async function load({url})  {
 	const clientId = parent?.clientId ?? (clientIdParam ? parseInt(clientIdParam, 10) : null);
 
 	const clients = await getClients()
-	const workItemTypes = await getWorkItemTypes()
 
+	const clientProductElements
+		= flatMapClientProductElements(await getAllProductElementsForClient(clientId))
 	return {
 		clientId,
 		clients,
 		parentId,
 		parentName: parent?.name,
-		workItemTypes,
+		clientProductElements,
+		workItemTypes: workItemTypes,
+		workItemStatuses: workItemStatuses,
 	}
 
 }
@@ -35,9 +43,12 @@ export const actions = {
 		const clientId = +(data.get('clientId') as string);
 		const parentIdFormValue: string | null = data.get('parentId') as string;
 		const parentId = parentIdFormValue ? +parentIdFormValue : undefined;
-		const workItemTypeId = +(data.get('workItemTypeId') as string);
+		const type = data.get('type') as string;
+		const productElementIdsRaw = data.getAll('productElementIds');
 
-		await addWorkItem({ name, clientId, parentId, workItemTypeId });
+		// Convert the array of string values to an array of numbers (if your database expects numbers)
+		const productElementIds = productElementIdsRaw.map(id => +(id as string));
+		await addWorkItem({ name, clientId, parentId, type, productElementIds, status: 'NEW' });
 
 	 	const redirectUrl = parentId ? `/work-items/${parentId}` : '/work-items';
 
