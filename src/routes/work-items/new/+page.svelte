@@ -5,6 +5,7 @@
 	import Select from '../../../components/Select.svelte';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
+	import TextArea from '../../../components/TextArea.svelte';
 	const { data } = $props();
 	function handleClientChange(e: Event) {
 		const target = e.target as HTMLSelectElement;
@@ -51,6 +52,9 @@
 	</div>
 	<div>
 		<Input name="name" required>Name</Input>
+	</div>
+	<div>
+		<TextArea name="description">Description</TextArea>
 	</div>
 	<div>
 		<Button>Create</Button>

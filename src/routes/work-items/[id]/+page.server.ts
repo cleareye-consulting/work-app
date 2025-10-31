@@ -28,12 +28,13 @@ export const actions = {
 		const data = await request.formData();
 		const id = +(data.get('id') as string);
 		const name = data.get('name') as string;
+		const description = data.get('description') as string;
 		const type = data.get('type') as string;
 		const parentIdFormValue: string | null = data.get('parentId') as string;
 		const parentId = parentIdFormValue ? +parentIdFormValue : undefined;
 		const clientId = +(data.get('clientId') as string);
 		const status = data.get('status') as string;
-		await updateWorkItem({ id, name, type, parentId, clientId, status})
+		await updateWorkItem({ id, name, type, parentId, clientId, status, description})
 
 		const redirectUrl = parentId ? `/work-items/${parentId}` : '/work-items';
 		redirect(303, redirectUrl);

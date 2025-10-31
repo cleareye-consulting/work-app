@@ -40,15 +40,14 @@ export const actions = {
 	default: async ({ request }) => {
 		const data = await request.formData();
 		const name = data.get('name') as string;
+		const description = data.get('description') as string;
 		const clientId = +(data.get('clientId') as string);
 		const parentIdFormValue: string | null = data.get('parentId') as string;
 		const parentId = parentIdFormValue ? +parentIdFormValue : undefined;
 		const type = data.get('type') as string;
 		const productElementIdsRaw = data.getAll('productElementIds');
-
-		// Convert the array of string values to an array of numbers (if your database expects numbers)
 		const productElementIds = productElementIdsRaw.map(id => +(id as string));
-		await addWorkItem({ name, clientId, parentId, type, productElementIds, status: 'NEW' });
+		await addWorkItem({ name, clientId, parentId, type, productElementIds, description, status: 'NEW' });
 
 	 	const redirectUrl = parentId ? `/work-items/${parentId}` : '/work-items';
 

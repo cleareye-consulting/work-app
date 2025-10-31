@@ -6,6 +6,7 @@
 	import Table from '../../../components/Table.svelte';
 	import TH from '../../../components/TH.svelte';
 	import TD from '../../../components/TD.svelte';
+	import TextArea from '../../../components/TextArea.svelte';
 	const { data } = $props();
 </script>
 
@@ -33,6 +34,9 @@
 				<option value={workItemStatus} selected={data.workItem?.status === workItemStatus}>{workItemStatus}</option>
 			{/each}
 		</Select>
+	</div>
+	<div>
+		<TextArea name="description" value={data.workItem.description}>Description</TextArea>
 	</div>
 	<div>
 		<Button>Update</Button>

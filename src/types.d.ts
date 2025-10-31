@@ -21,6 +21,7 @@ export interface WorkItem {
 	name: string;
 	type: string;
 	status: string;
+	description?: string;
 	clientId: number;
 	clientName?: string;
 	parentId?: number;

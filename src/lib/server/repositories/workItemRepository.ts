@@ -32,7 +32,7 @@ export async function getWorkItems(parentId: number | null, clientId: number | n
 export async function getWorkItemById(id: number): Promise<WorkItem | null> {
 	const pool = getDB()
 	const sql = `
-		select wi.id, wi.name, wi.type, wi.status,
+		select wi.id, wi.name, wi.type, wi.status, wi.description,
 			wi.client_id, c.name as client_name, wi.parent_id, p.name as parent_name
 		from work_items as wi 
 			inner join clients as c on wi.client_id = c.id 
@@ -46,6 +46,7 @@ export async function getWorkItemById(id: number): Promise<WorkItem | null> {
 		name: row.name,
 		type: row.type,
 		status: row.status,
+		description: row.description,
 		clientId: row.client_id,
 		clientName: row.client_name,
 		parentId: row.parent_id,
@@ -59,11 +60,13 @@ export async function addWorkItem(item: WorkItem): Promise<number> {
 	try {
 		await client.query('BEGIN')
 		const workItemSql = `
-			insert into work_items (name, type, status, client_id, parent_id) 
-			values ($1, $2, $3, $4, $5)
+			insert into work_items (name, type, status, client_id, parent_id, description)  
+			values ($1, $2, $3, $4, $5, $6)
 			returning id;
 		`
-		const workItemResult = await pool.query(workItemSql, [item.name, item.type, item.status, item.clientId, item.parentId ?? null])
+		const workItemResult = await pool.query(
+			workItemSql,
+			[item.name, item.type, item.status, item.clientId, item.parentId ?? null, item.description ?? null])
 		const workItemId = workItemResult.rows[0].id;
 		const productElementSql = `
 			insert into work_item_product_elements (work_item_id, product_element_id) 
@@ -87,9 +90,9 @@ export async function updateWorkItem(item: WorkItem) {
 	const pool = getDB()
 		const sql = `
 			update work_items 
-			set name=$2, type=$3, status=$4, client_id=$5, parent_id=$6::int 
+			set name=$2, type=$3, status=$4, client_id=$5, parent_id=$6::int, description=$7
 			where id=$1;`
-		await pool.query(sql, [item.id, item.name, item.type, item.status, item.clientId, item.parentId ?? null])
+		await pool.query(sql, [item.id, item.name, item.type, item.status, item.clientId, item.parentId ?? null, item.description ?? null]);
 }
 
 export async function getWorkItemDocuments(workItemId: number): Promise<WorkItemDocument[]>{
