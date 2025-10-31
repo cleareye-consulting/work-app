@@ -1,7 +1,7 @@
 import type { WorkItemDocument, WorkItem  } from '../../../types';
 import { getDB } from '$lib/server/db';
 
-export async function getWorkItems(parentId: number | null, clientId: number | null): Promise<WorkItem[]> {
+export async function getWorkItems(parentId: number | null, clientId: number | null, statuses: string[] | null): Promise<WorkItem[]> {
 	const pool = getDB()
 	const sql = `
 		select wi.id, wi.name, 	wi.type, wi.status,
@@ -11,9 +11,10 @@ export async function getWorkItems(parentId: number | null, clientId: number | n
 			left join work_items as p on wi.parent_id = p.id
 		where ($1::int is null and wi.parent_id is null or $1::int is not null and wi.parent_id = $1::int)
 			and ($2::int is null or wi.client_id = $2::int)
+			and ($3::text[] is null or wi.status = ANY($3))
 		order by wi.id;
 	`
-	const result = await pool.query(sql, [parentId, clientId])
+	const result = await pool.query(sql, [parentId, clientId, statuses])
 	return result.rows.map(row => {
 		return {
 			id: row.id,

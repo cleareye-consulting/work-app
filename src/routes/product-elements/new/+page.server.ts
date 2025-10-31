@@ -4,7 +4,6 @@ import {
 	getProductElementById
 } from '$lib/server/repositories/productElementRepository';
 import { redirect } from '@sveltejs/kit';
-import { q } from '../../../../.svelte-kit/output/server/chunks';
 
 export async function load({url})  {
 	const clientIdParam = url.searchParams.get('clientId');

@@ -15,7 +15,7 @@
 	<input type="hidden" name="workItemId" value={data.document.workItemId} />
 	<input type="hidden" name="type" value="text/markdown" />
 <div>
-	<Input name="name" value={data.document.name}>Name</Input>
+	<Input name="name" value={data.document.name} required>Name</Input>
 </div>
 <div>
 	<Button>Update</Button>

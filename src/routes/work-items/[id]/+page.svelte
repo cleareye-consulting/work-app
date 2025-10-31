@@ -3,6 +3,9 @@
 	import A from '../../../components/A.svelte';
 	import Select from '../../../components/Select.svelte';
 	import Button from '../../../components/Button.svelte';
+	import Table from '../../../components/Table.svelte';
+	import TH from '../../../components/TH.svelte';
+	import TD from '../../../components/TD.svelte';
 	const { data } = $props();
 </script>
 
@@ -35,14 +38,29 @@
 		<Button>Update</Button>
 	</div>
 </form>
-
+<hr class="my-4"/>
 <h3 class="text-2xl">Children</h3>
-{#each (data.workItem?.children ?? []) as child (child.id)}
-	<div class="flex items-center gap-2">
-		<A href={`/work-items/${child.id}`}>{child.name}</A>
-	</div>
-{/each}
-<div class="flex items-center gap-2">
+{#if data.workItem?.children?.length !== 0}
+<Table>
+	<thead>
+		<tr>
+			<TH>Name</TH>
+			<TH>Type</TH>
+			<TH>Status</TH>
+		</tr>
+	</thead>
+	<tbody>
+	{#each (data.workItem?.children ?? []) as child (child.id)}
+		<tr>
+			<TD><A href={`/work-items/${child.id}`}>{child.name}</A></TD>
+			<TD>{child.type}</TD>
+			<TD>{child.status}</TD>
+		</tr>
+	{/each}
+	</tbody>
+</Table>
+{/if}
+<div class="flex items-center gap-2 mt-4">
 	<A href={`/work-items/new?parentId=${data.workItem?.id}&clientId=${data.workItem?.clientId}`}>New Child</A>
 </div>
 <hr class="my-4" />
@@ -50,6 +68,6 @@
 {#each (data.workItem?.documents ?? []) as document (document.id)}
 	<A href={`/work-items/${data.workItem?.id}/documents/${document.id}`}>{document.name}</A>
 {/each}
-<div class="flex items-center gap-2">
+<div class="flex items-center gap-2 mt-4">
 	<A href={`/work-items/${data.workItem?.id}/documents/new`}>New Document</A>
 </div>

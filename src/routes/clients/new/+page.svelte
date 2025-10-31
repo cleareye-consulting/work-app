@@ -4,11 +4,11 @@
 	import Input from '../../../components/Input.svelte';
 </script>
 
-<ContentHeader pageTitle="New Client" />
+<ContentHeader>New Client</ContentHeader>
 
 <form method="POST">
 	<div>
-		<Input name="name">Name</Input>
+		<Input name="name" required>Name</Input>
 	</div>
 	<div>
 		<Button>Create</Button>

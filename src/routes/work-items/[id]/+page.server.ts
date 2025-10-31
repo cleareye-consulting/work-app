@@ -4,14 +4,14 @@ import {
 	getWorkItems,
 	updateWorkItem
 } from '$lib/server/repositories/workItemRepository';
-import { flatMapClientProductElements, workItemStatuses } from '$lib/server/utils';
+import { flatMapClientProductElements, getActiveStatuses, workItemStatuses } from '$lib/server/utils';
 import { getAllProductElementsForClient, getProductElementsForWorkItem } from '$lib/server/repositories/productElementRepository';
 import { redirect } from '@sveltejs/kit';
 
 export async function load({params}) {
 	const id = params.id
 	const workItem = await getWorkItemById(+id)
-	const children = await getWorkItems(+id, null)
+	const children = await getWorkItems(+id, null, getActiveStatuses())
 	const documents = await getWorkItemDocuments(+id)
 	const clientProductElements
 		= flatMapClientProductElements(await getAllProductElementsForClient(workItem!.clientId))

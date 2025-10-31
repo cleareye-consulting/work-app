@@ -35,7 +35,7 @@
 		</Select>
 	</div>
 	<div>
-		<Select name="type" label="Work Item Type">
+		<Select name="type" label="Work Item Type" required>
 			<option value="">Select Work Item Type</option>
 			{#each data.workItemTypes as workItemType (workItemType)}
 				<option value={workItemType}>{workItemType}</option>
@@ -50,7 +50,7 @@
 		</Select>
 	</div>
 	<div>
-		<Input name="name">Name</Input>
+		<Input name="name" required>Name</Input>
 	</div>
 	<div>
 		<Button>Create</Button>

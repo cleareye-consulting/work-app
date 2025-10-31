@@ -14,7 +14,7 @@
 	<input type="hidden" name="workItemId" value={data.workItemId} />
 	<input type="hidden" id="type" name="type" value="text/markdown"/>
 <div>
-	<Input name="name" value={name}>Name</Input>
+	<Input name="name" value={name} required>Name</Input>
 </div>
 <div>
 	<Button>Add</Button>

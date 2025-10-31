@@ -14,7 +14,7 @@
 		<Input name="parentProductElementName" readonly value={data.parentName}>Parent</Input>
 	</div>
 	<div>
-		<Select name="clientId" label="Client">
+		<Select name="clientId" label="Client" required>
 			<option value="">Select Client</option>
 			{#each data.clients as client (client.id)}
 				<option value={client.id} selected={client.id === data.clientId}>{client.name}</option>
@@ -22,7 +22,7 @@
 		</Select>
 	</div>
 	<div>
-		<Input name="name">Name</Input>
+		<Input name="name" required>Name</Input>
 	</div>
 	<div>
 		<Button>Create</Button>
