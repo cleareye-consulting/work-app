@@ -97,7 +97,7 @@ export async function updateWorkItem(item: WorkItem) {
 
 export async function getWorkItemDocuments(workItemId: number): Promise<WorkItemDocument[]>{
 	const pool = getDB()
-	const sql = "select id, work_item_id, name, type, content from work_item_documents where work_item_id = $1 order by id";
+	const sql = "select id, work_item_id, name, type, content, summary from work_item_documents where work_item_id = $1 order by id";
 	const result = await pool.query(sql, [workItemId]);
 	return result.rows.map(row => {
 		return {
@@ -105,14 +105,15 @@ export async function getWorkItemDocuments(workItemId: number): Promise<WorkItem
 			workItemId: row.work_item_id,
 			name: row.name,
 			type: row.type,
-			content: row.content
+			content: row.content,
+			summary: row.summary
 		}
 	});
 }
 
 export async function getWorkItemDocumentById(id: string): Promise<WorkItemDocument> {
 	const pool = getDB()
-	const sql = "select id, work_item_id, name, type, content from work_item_documents where id = $1;"
+	const sql = "select id, work_item_id, name, type, content, summary from work_item_documents where id = $1;"
 	const result = await pool.query(sql, [id]);
 	const row = result.rows[0];
 	return {
@@ -120,24 +121,25 @@ export async function getWorkItemDocumentById(id: string): Promise<WorkItemDocum
 		name: row.name,
 		type: row.type,
 		workItemId: row.work_item_id,
-		content: row.content
+		content: row.content,
+		summary: row.summary
 	}
 }
 
 export async function addWorkItemDocument(item: WorkItemDocument): Promise<number> {
 	const pool = getDB()
 	const sql = `
-		insert into work_item_documents (work_item_id, name, type, content) 
-		values ($1, $2, $3, $4) 
+		insert into work_item_documents (work_item_id, name, type, content, summary) 
+		values ($1, $2, $3, $4, $5) 
 		returning id;`
-	const result = await pool.query(sql, [item.workItemId, item.name, item.type, item.content]);
+	const result = await pool.query(sql, [item.workItemId, item.name, item.type, item.content, item.summary ?? null]);
 	return result.rows[0].id;
 }
 
 export async function updateWorkItemDocument(item: WorkItemDocument) {
 	const pool = getDB()
-	const sql = "update work_item_documents set name=$2, type=$3, content=$4 where id=$1;"
-	await pool.query(sql, [item.id, item.name, item.type, item.content]);
+	const sql = "update work_item_documents set name=$2, type=$3, content=$4, summary=$5 where id=$1;"
+	await pool.query(sql, [item.id, item.name, item.type, item.content, item.summary ?? null]);
 }
 
 export async function getWorkItemsForProductElement(productElementId: number): Promise<WorkItem[]> {

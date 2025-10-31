@@ -3,7 +3,7 @@
 	import MarkdownEditor from '../../../../../components/MarkdownEditor.svelte';
 	import Button from '../../../../../components/Button.svelte';
 	import Input from '../../../../../components/Input.svelte';
-	let name = $state('')
+	let name = $state(new Date().toISOString(	))
 	let {data} = $props() as {data: {workItemId: string}}
 	let content = $state('')
 </script>

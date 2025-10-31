@@ -48,4 +48,5 @@ export interface ProductElementDocument extends Document {
 
 export interface WorkItemDocument extends Document {
 	workItemId: number;
+	summary?: string;
 }

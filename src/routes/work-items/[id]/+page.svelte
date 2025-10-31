@@ -69,9 +69,24 @@
 </div>
 <hr class="my-4" />
 <h3 class="text-2xl">Documents</h3>
-{#each (data.workItem?.documents ?? []) as document (document.id)}
-	<A href={`/work-items/${data.workItem?.id}/documents/${document.id}`}>{document.name}</A>
-{/each}
+{#if data.workItem?.documents?.length !== 0}
+	<Table>
+		<thead>
+		<tr>
+			<TH>Name</TH>
+			<TH>Summary</TH>
+		</tr>
+		</thead>
+		<tbody>
+		{#each (data.workItem?.documents ?? []) as document (document.id)}
+			<tr>
+				<TD><A href={`/work-items/${data.workItem?.id}/documents/${document.id}`}>{document.name}</A></TD>
+				<TD>{document.summary}</TD>
+			</tr>
+  	{/each}
+		</tbody>
+	</Table>
+	{/if}
 <div class="flex items-center gap-2 mt-4">
 	<A href={`/work-items/${data.workItem?.id}/documents/new`}>New Document</A>
 </div>
