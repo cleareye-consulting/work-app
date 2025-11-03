@@ -1,131 +1,256 @@
 import type { ProductElement, ProductElementDocument } from '../../../types';
-import { getDB } from '$lib/server/db';
+import { dynamoDBDocumentClient, getNextSequenceNumber, getTableName } from '$lib/server/db';
+import {
+	BatchGetCommand,
+	GetCommand,
+	PutCommand,
+	QueryCommand,
+	UpdateCommand
+} from '@aws-sdk/lib-dynamodb';
 
-export async function getProductElements(parentId: number | null, clientId: number | null): Promise<ProductElement[]> {
-	const pool = getDB()
-	const sql = `
-		select pe.id, pe.name, pe.client_id, c.name as client_name 
-		from product_elements as pe inner join clients as c on pe.client_id = c.id 
-		where ($1::int is null and pe.parent_product_element_id is null or $1::int is not null and pe.parent_product_element_id = $1::int)
-			and ($2::int is null or pe.client_id = $2::int)
-		order by pe.id;`
-	const result = await pool.query(sql, [parentId, clientId]);
-	return result.rows.map(row => {
-		return {
-			id: row.id,
-			clientId: row.client_id,
-			clientName: row.client_name,
-			name: row.name
+export async function getProductElementsForClient(clientId: number, topLevelOnly: boolean): Promise<ProductElement[]> {
+	const queryResult = await dynamoDBDocumentClient.send(new QueryCommand({
+		TableName: getTableName(),
+		IndexName: "clientId-index",
+		KeyConditionExpression: "clientId = :clientId",
+		ExpressionAttributeValues: {
+			":clientId": clientId
+		},
+		ScanIndexForward: true,
+		ProjectionExpression: "id, #name, clientId, clientName, parentId, parentName",
+		ExpressionAttributeNames: {
+			'#name': 'name'
 		}
-	})
+	}))
+	const results: ProductElement[] = [];
+	for (const item of queryResult.Items || []) {
+		if (topLevelOnly && item.parentId !== null) {
+			continue;
+		}
+		results.push({
+			id: item.id,
+			clientId: item.clientId,
+			clientName: item.clientName,
+			name: item.name,
+		})
+	}
+	return results;
 }
 
-export async function getProductElementById(id: number): Promise<ProductElement | null> {
-	const pool = getDB()
-	const sql = `
-		select pe.id, pe.name, pe.client_id, c.name as client_name
-		from product_elements as pe inner join clients as c on pe.client_id = c.id
-		where pe.id = $1;`
-	const result = await pool.query(sql, [id])
-	if (result.rows.length === 0) {
-		return null
+export async function getChildProductElements(parentId: number): Promise<ProductElement[]> {
+	const queryResult = await dynamoDBDocumentClient.send(new QueryCommand({
+		TableName: getTableName(),
+		IndexName: "parentId-index",
+		KeyConditionExpression: "parentId = :parentId",
+		ExpressionAttributeValues: {
+			":parentId": parentId
+		},
+		ScanIndexForward: true,
+		ProjectionExpression: "id, #name, clientId, clientName, parentId, parentName",
+		ExpressionAttributeNames: {
+			'#name': 'name'
+		}
+	}))
+	return (queryResult.Items ?? []).map(item => {
+		return {
+			id: item.id,
+			clientId: item.clientId,
+			clientName: item.clientName,
+			name: item.name,
+			parentId: item.parentId,
+			parentName: item.parentName
+		}
+	})
+
+}
+
+export async function getProductElementById(id: number): Promise<ProductElement> {
+	const getResponse = await dynamoDBDocumentClient.send(new GetCommand({
+		TableName: getTableName(),
+		Key: {
+			PK: `PE#${id}`,
+			SK: 'METADATA'
+		},
+		ProjectionExpression: '#name, clientId, clientName, parentId, parentName',
+		ExpressionAttributeNames: {
+			'#name': 'name',
+		}
+	}))
+	if (!getResponse.Item) {
+		throw new Error('Product element not found')
 	}
-	const row = result.rows[0]
-	return {
-		id: row.id,
-		name: row.name,
-		clientId: row.client_id,
-		clientName: row.client_name
+	const item = getResponse.Item;
+	const result: ProductElement = {
+		id: item.EntityId, // Use EntityId for the primary ID
+		name: item.name,
+		clientId: item.clientId,
+		clientName: item.clientName,
+		parentId: item.parentId,
+		parentName: item.parentName
 	}
+	result.documents = await getProductElementDocuments(id)
+	return result;
 }
 
 export async function addProductElement(item: ProductElement): Promise<number> {
-	const pool= getDB()
-	const sql = `insert into product_elements (name, client_id, parent_product_element_id) 
-							 values ($1, $2, $3::int)
-							 returning id;`
-	const result = await pool.query(sql, [item.name, item.clientId, item.parentProductElementId])
-	return result.rows[0].id
+	const newId = await getNextSequenceNumber("PE");
+	await dynamoDBDocumentClient.send(new PutCommand({
+		TableName: getTableName(),
+		Item: {
+			PK: `PE#${newId}`,
+			SK: 'METADATA',
+			entityType: 'PE',
+			entityId: newId,
+			name: item.name,
+			clientId: item.clientId,
+			clientName: item.clientName,
+			parentId: item.parentId ?? null,
+			parentName: item.parentName ?? null,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString()
+		},
+	}));
+	return newId;
 }
 
 export async function getProductElementDocuments(productElementId: number): Promise<ProductElementDocument[]>{
-	const pool = getDB()
-	const sql = "select id, product_element_id, name, type, content from product_element_documents where product_element_id = $1 order by id";
-	const result = await pool.query(sql, [productElementId]);
-	return result.rows.map(row => {
+	const queryResult = await dynamoDBDocumentClient.send(new QueryCommand({
+		TableName: getTableName(),
+		KeyConditionExpression: 'PK = :parentKey AND begins_with(SK, :docPrefix)',
+		ExpressionAttributeNames: {
+			'#name': 'name',
+			'#type': 'type',
+			'#content': 'content',
+		},
+		ExpressionAttributeValues: {
+			":parentKey": `PE#${productElementId}`,
+			":docPrefix": "DOC#",
+		},
+		ProjectionExpression: 'PK, SK, #name, #type, #content',
+		ScanIndexForward: true
+	}))
+	return (queryResult.Items ?? []).map(item => {
 		return {
-			id: row.id,
-			productElementId: row.product_element_id,
-			name: row.name,
-			type: row.type,
-			content: row.content
+			id: item.SK.split('#')[1],
+			name: item.name,
+			type: item.type,
+			content: item.content,
+			productElementId
 		}
-	});
+	})
 }
 
-export async function getProductElementDocumentById(id: string): Promise<ProductElementDocument> {
-	const pool = getDB()
-	const sql = "select id, product_element_id, name, type, content from product_element_documents where id = $1;"
-	const result = await pool.query(sql, [id]);
-	const row = result.rows[0];
-	return {
-		id: row.id,
-		name: row.name,
-		type: row.type,
-		productElementId: row.product_element_id,
-		content: row.content
+export async function getProductElementDocumentById(productElementId: number, documentId: number): Promise<ProductElementDocument> {
+	const getResult = await dynamoDBDocumentClient.send(
+		new GetCommand({
+			TableName: getTableName(),
+			Key: {
+				PK: `PE#${productElementId}`,
+				SK: `DOC#${documentId}`
+			},
+			ProjectionExpression: '#name, #type, #content',
+			ExpressionAttributeNames: {
+				'#name': 'name',
+				'#type': 'type',
+				'#content': 'content'
+			}
+		})
+	);
+	if (!getResult.Item) {
+		throw new Error('Product element document not found');
 	}
+	return {
+		id: documentId,
+		name: getResult.Item.name,
+		type: getResult.Item.type,
+		content: getResult.Item.content,
+		productElementId: productElementId
+	};
 }
 
 export async function addProductElementDocument(item: ProductElementDocument): Promise<number> {
-	const pool = getDB()
-	const sql = "insert into product_element_documents (product_element_id, name, type, content) values ($1, $2, $3, $4) returning id;"
-	const result = await pool.query(sql, [item.productElementId, item.name, item.type, item.content]);
-	return result.rows[0].id
+	const newId = await getNextSequenceNumber("DOC-PE")
+	await dynamoDBDocumentClient.send(new PutCommand({
+		TableName: getTableName(),
+		Item: {
+			PK: `PE#${item.productElementId}`,
+			SK: `DOC#${newId}`,
+			name: item.name,
+			type: item.type,
+			content: item.content,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString()
+		}
+	}))
+	return newId
 }
 
 export async function updateProductElementDocument(item: ProductElementDocument) {
-	const pool = getDB()
-	const sql = "update product_element_documents set name=$2, type=$3, content=$4 where id=$1;"
-	await pool.query(sql, [item.id, item.name, item.type, item.content]);
+	await dynamoDBDocumentClient.send(new UpdateCommand({
+		TableName: getTableName(),
+		Key: {
+			PK: `PE#${item.productElementId}`,
+			SK: `DOC#${item.id}`
+		},
+		UpdateExpression: 'set #name = :name, #type = :type, #content = :content, #updatedAt = :updatedAt',
+		ExpressionAttributeNames: {
+			'#name': 'name',
+			'#type': 'type',
+			'#content': 'content',
+			'#updatedAt': 'updatedAt',
+		},
+		ExpressionAttributeValues: {
+			':name': item.name,
+			':type': item.type,
+			':content': item.content,
+			':updatedAt': new Date().toISOString()
+		}
+	}))
 }
 
 export async function getProductElementsForWorkItem(workItemId: number): Promise<ProductElement[]> {
-	const pool = getDB()
+	const workItemPK = `WI#${workItemId}`;
 
-	const sql = `
-		select pe.id, pe.name, pe.client_id, c.name as client_name 
-		from product_elements as pe 
-			inner join clients as c on pe.client_id = c.id 
-			inner join work_item_product_elements as wipe on pe.id = wipe.product_element_id 
-		where wipe.work_item_id = $1
-		order by pe.id;`
-	const result = await pool.query(sql, [workItemId]);
-	return result.rows.map(row => {
+	// 1. Query the WI#<id> partition for all SKs that start with 'PE#'
+	const linkQueryResult = await dynamoDBDocumentClient.send(new QueryCommand({
+		TableName: getTableName(),
+		KeyConditionExpression: 'PK = :pk AND begins_with(SK, :pePrefix)',
+		ExpressionAttributeValues: {
+			':pk': workItemPK,
+			':pePrefix': 'PE#',
+		},
+		ProjectionExpression: 'SK' // We only need the PE#<id> links
+	}));
+
+	const peKeys = (linkQueryResult.Items || []).map(item => {
+		const peId = item.SK.split('#')[1];
+		// Keys needed for the BatchGet on the PE metadata record
 		return {
-			id: row.id,
-			clientId: row.client_id,
-			clientName: row.client_name,
-			name: row.name
+			PK: `PE#${peId}`,
+			SK: 'METADATA'
+		};
+	});
+
+	if (peKeys.length === 0) {
+		return [];
+	}
+
+	// 2. BatchGet the metadata for all found Product Elements
+	const batchResult = await dynamoDBDocumentClient.send(new BatchGetCommand({
+		RequestItems: {
+			[getTableName()]: {
+				Keys: peKeys,
+				ProjectionExpression: 'EntityId, #n, clientId, clientName',
+				ExpressionAttributeNames: { '#n': 'name' }
+			}
 		}
-	})
+	}));
+
+	return (batchResult.Responses?.[getTableName()] || []).map(item => ({
+		id: item.EntityId,
+		name: item.name,
+		clientId: item.clientId,
+		clientName: item.clientName
+	})) as ProductElement[];
 }
 
-export async function getAllProductElementsForClient(clientId: number | null): Promise<ProductElement[]> {
-	const pool = getDB()
-	const sql = `
-		select pe.id, pe.name, pe.client_id, c.name as client_name, pe.parent_product_element_id
-		from product_elements as pe inner join clients as c on pe.client_id = c.id 
-		where (pe.client_id = $1)
-		order by pe.id;`
-	const result = await pool.query(sql, [clientId]);
-	return result.rows.map(row => {
-		return {
-			id: row.id,
-			clientId: row.client_id,
-			clientName: row.client_name,
-			name: row.name,
-			parentProductElementId: row.parent_product_element_id
-		}
-	})
-}

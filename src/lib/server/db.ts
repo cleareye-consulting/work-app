@@ -1,19 +1,36 @@
-import pg from "pg";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
-import {
-	DB_HOST,
-	DB_USER,
-	DB_PASSWORD,
-	DB_NAME
-} from '$env/static/private';
+const client = new DynamoDBClient({
+	region: "US-EAST-1",
+	profile: "cleareye-workapp-account",
+})
 
-export function getDB(): pg.Pool {
- return new pg.Pool({
-		host: DB_HOST,
-		user: DB_USER,
-		password: DB_PASSWORD,
-		database: DB_NAME,
-		max: 10,
-		idleTimeoutMillis: 30000,
+// This client is instantiated ONCE when the module loads
+export const dynamoDBDocumentClient = DynamoDBDocumentClient.from(client);
+
+export const getTableName = () => "work-app"
+
+export async function getNextSequenceNumber(prefix: string): Promise<number> {
+	// We use a specific item (PK='COUNTER', SK=prefix) to hold the counter
+	const updateParams = new UpdateCommand({
+		TableName: getTableName(),
+		Key: {
+			PK: "COUNTER", // Hardcoded partition key for all counters
+			SK: prefix,    // Sort key for the specific counter (CLIENT, WI, PE)
+		},
+		// The ADD operator is key: it atomically increments 'current_id'
+		UpdateExpression: "ADD current_id :inc",
+		ExpressionAttributeValues: {
+			":inc": 1,
+		},
+		// Crucial: Tell DynamoDB to return the new, updated value
+		ReturnValues: "UPDATED_NEW",
 	});
+
+	const response = await dynamoDBDocumentClient.send(updateParams);
+
+	// Return the new ID from the response
+	// Note: DynamoDB returns numbers as strings in the low-level API, but lib-dynamodb converts them
+	return response.Attributes?.current_id as number;
 }
