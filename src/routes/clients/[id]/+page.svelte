@@ -22,10 +22,6 @@ let {data} = $props()
 	</div>
 </form>
 <hr class="my-4" />
-<h3 class="text-2xl">Product Elements</h3>
-<hr class="my-4" />
-<h3 class="text-2xl">Work Items</h3>
-<hr class="my-4" />
 <h3 class="text-2xl">Documents</h3>
 {#each (data.client.documents ?? []) as document (document.id)}
 	<div><A href="/clients/{data.client.id}/documents/{document.id}">{document.name}</A></div>

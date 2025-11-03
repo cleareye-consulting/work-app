@@ -58,6 +58,10 @@ async function geminiSummary(content: string) {
 						and should never exceed one complete sentence.
 						Do not include concluding punctuation, or any unnecessary characters.
 						
+						If there's a line at the top that looks like it might be a summary,
+						especially if it's enclosed in triple asterisks,
+						that's probably a good summary.
+						
             DOCUMENT CONTENT:
             ---
             ${content}
