@@ -18,8 +18,6 @@
 		} else {
 			params.delete('clientId');
 		}
-		// Clear parent filter when changing client
-		params.delete('parentId');
 		// eslint-disable-next-line svelte/no-navigation-without-resolve
 		goto(`?${params}`);
 	}
@@ -28,42 +26,36 @@
 <ContentHeader>Work Items</ContentHeader>
 
 <div class="my-4">
-	<div class="mb-4 flex gap-4 items-center">
+	<div class="mb-4 flex items-center gap-4">
 		<div>
-		<label for="clientId" class="mr-2">Client:</label>
-		<select
-			id="clientFilter"
-			onchange={handleClientChange}
-			class="border rounded px-2 py-1"
-		>
-			<option value="">All Clients</option>
-			{#each clients as client, i (i)}
-				<option value={client.id} selected={client.id === data.currentClientId} >{client.name}</option>
-			{/each}
-		</select>
+			<label for="clientId" class="mr-2">Client:</label>
+			<select id="clientFilter" onchange={handleClientChange} class="rounded border px-2 py-1">
+				<option value="">Select a Client</option>
+				{#each clients as client, i (i)}
+					<option value={client.id} selected={client.id === data.clientId}>{client.name}</option>
+				{/each}
+			</select>
 		</div>
 	</div>
 
 	<Table>
 		<thead>
-		<tr>
-			<TH>Name</TH>
-			<TH>Type</TH>
-			<TH>Status</TH>
-			<TH>Client</TH>
-		</tr>
+			<tr>
+				<TH>Name</TH>
+				<TH>Type</TH>
+				<TH>Status</TH>
+			</tr>
 		</thead>
 		<tbody>
-		{#each data.workItems as element, i (i)}
-			<tr class="border-b hover:bg-gray-50 cursor-pointer" >
-				<TD><A href="/work-items/{element.id}">{element.name}</A></TD>
-				<TD>{element.type}</TD>
-				<TD>{element.status}</TD>
-				<TD>{element.clientName}</TD>
-			</tr>
-		{/each}
+			{#each data.workItems as element, i (i)}
+				<tr class="cursor-pointer border-b hover:bg-gray-50">
+					<TD><A href="/work-items/{element.id}">{element.name}</A></TD>
+					<TD>{element.type}</TD>
+					<TD>{element.status}</TD>
+				</tr>
+			{/each}
 		</tbody>
 	</Table>
 </div>
-<hr/>
-<A href={`/work-items/new?parentId=${data.currentParentId ?? ''}&clientId=${data.currentClientId ?? ''}`}>New Work Item</A>
+<hr />
+<A href={`/work-items/new?clientId=${data.clientId ?? ''}`}>New Work Item</A>

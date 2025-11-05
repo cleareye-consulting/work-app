@@ -1,29 +1,23 @@
-import { getClients } from '$lib/server/repositories/clientRepository';
+import { getClientName, getClients } from '$lib/server/repositories/clientRepository';
 import { redirect } from '@sveltejs/kit';
-import {
-	addWorkItem,
-	getWorkItemById,
-} from '$lib/server/repositories/workItemRepository';
-import { getAllProductElementsForClient } from '$lib/server/repositories/productElementRepository';
-import {
-	flatMapClientProductElements,
-	workItemStatuses,
-	workItemTypes
-} from '$lib/server/utils';
+import { addWorkItem, getWorkItemById } from '$lib/server/repositories/workItemRepository';
+import { getProductElementsForClient } from '$lib/server/repositories/productElementRepository';
+import { flatMapClientProductElements, workItemStatuses, workItemTypes } from '$lib/server/utils';
 
-export async function load({url})  {
+export async function load({ url }) {
 	const clientIdParam = url.searchParams.get('clientId');
 	const parentIdParam = url.searchParams.get('parentId');
 
 	const parentId = parentIdParam ? parseInt(parentIdParam, 10) : null;
 
-	const parent  = parentId ? await getWorkItemById(parentId) : null;
+	const parent = parentId ? await getWorkItemById(parentId) : null;
 	const clientId = parent?.clientId ?? (clientIdParam ? parseInt(clientIdParam, 10) : null);
 
-	const clients = await getClients()
+	const clients = await getClients();
 
-	const clientProductElements
-		= flatMapClientProductElements(await getAllProductElementsForClient(clientId))
+	const clientProductElements = flatMapClientProductElements(
+		clientId ? await getProductElementsForClient(clientId, false) : []
+	);
 	return {
 		clientId,
 		clients,
@@ -31,9 +25,8 @@ export async function load({url})  {
 		parentName: parent?.name,
 		clientProductElements,
 		workItemTypes: workItemTypes,
-		workItemStatuses: workItemStatuses,
-	}
-
+		workItemStatuses: workItemStatuses
+	};
 }
 
 export const actions = {
@@ -46,10 +39,20 @@ export const actions = {
 		const parentId = parentIdFormValue ? +parentIdFormValue : undefined;
 		const type = data.get('type') as string;
 		const productElementIdsRaw = data.getAll('productElementIds');
-		const productElementIds = productElementIdsRaw.map(id => +(id as string));
-		await addWorkItem({ name, clientId, parentId, type, productElementIds, description, status: 'NEW' });
+		const productElementIds = productElementIdsRaw.map((id) => +(id as string));
+		const clientName = await getClientName(clientId);
+		await addWorkItem({
+			name,
+			clientId,
+			clientName,
+			parentId,
+			type,
+			productElementIds,
+			description,
+			status: 'NEW'
+		});
 
-	 	const redirectUrl = parentId ? `/work-items/${parentId}` : '/work-items';
+		const redirectUrl = parentId ? `/work-items/${parentId}` : '/work-items';
 
 		redirect(303, redirectUrl);
 	}

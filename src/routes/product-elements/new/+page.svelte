@@ -9,18 +9,23 @@
 <ContentHeader>New Product Element</ContentHeader>
 
 <form method="POST">
-	<input type="hidden" name="parentProductElementId" value={data.parentId}/>
+	<input type="hidden" name="parentId" value={data.parentId} />
+	<input type="hidden" name="parentName" value={data.parentName} />
 	<div>
-		<Input name="parentProductElementName" readonly value={data.parentName}>Parent</Input>
+		<Input name="parentNameDisabled" readonly value={data.parentName}>Parent</Input>
 	</div>
-	<div>
-		<Select name="clientId" label="Client" required>
-			<option value="">Select Client</option>
-			{#each data.clients as client (client.id)}
-				<option value={client.id} selected={client.id === data.clientId}>{client.name}</option>
-			{/each}
-		</Select>
-	</div>
+	{#if data.parentId}
+		<input type="hidden" name="clientId" value={data.clientId} />
+	{:else}
+		<div>
+			<Select name="clientId" label="Client" required>
+				<option value="">Select Client</option>
+				{#each data.clients as client (client.id)}
+					<option value={client.id} selected={client.id === data.clientId}>{client.name}</option>
+				{/each}
+			</Select>
+		</div>
+	{/if}
 	<div>
 		<Input name="name" required>Name</Input>
 	</div>

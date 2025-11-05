@@ -8,7 +8,7 @@ export interface Client {
 export interface ProductElement {
 	id?: number;
 	clientId: number;
-	clientName?: string;
+	clientName: string;
 	name: string;
 	parentId?: number;
 	parentName?: string;
