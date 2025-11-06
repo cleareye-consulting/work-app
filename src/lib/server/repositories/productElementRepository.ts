@@ -15,6 +15,42 @@ import {
 	UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+type ProductElementCache = {
+	expirationTime : number;
+	items: ProductElement[];
+}
+
+const cachedProductElements = new Map<number, ProductElementCache>();
+
+function invalidateCache(clientId: number) {
+	if (cachedProductElements.has(clientId)) {
+		const item = cachedProductElements.get(clientId)!;
+		if (item) {
+			cachedProductElements.set(clientId, {...item, expirationTime: 0})
+		}
+	}
+}
+
+function getProductElementsFromCache(clientId: number) {
+	const item = cachedProductElements.get(clientId);
+	if (!item) {
+		return [];
+	}
+	if (item.expirationTime < Date.now()) {
+		return [];
+	}
+	return item.items;
+}
+
+function cacheProductElements(clientId: number, elements: ProductElement[]) {
+	cachedProductElements.set(clientId, {
+		expirationTime: Date.now() + CACHE_TTL_MS,
+		items: elements
+	});
+}
+
 function getSearchKey(item: ProductElement, partitionKey: string): string {
 	const parentId = item.parentId ?? TOP_LEVEL_PARENT_ID;
 	const active = 'active';
@@ -22,6 +58,7 @@ function getSearchKey(item: ProductElement, partitionKey: string): string {
 }
 
 export async function addProductElement(item: ProductElement): Promise<number> {
+	invalidateCache(item.clientId);
 	const newId = await getNextSequenceNumber('PE');
 	const partitionKey = `PE#${newId}`;
 	const searchKey = getSearchKey(item, partitionKey);
@@ -91,6 +128,10 @@ export async function updateProductElementDocument(item: ProductElementDocument)
 }
 
 export async function getProductElementsForClient(clientId: number): Promise<ProductElement[]> {
+	const cachedElements = getProductElementsFromCache(clientId);
+	if (cachedElements.length > 0) {
+		return cachedElements;
+	}
 	const queryResult = await dynamoDBDocumentClient.send(
 		new QueryCommand({
 			TableName: TABLE_NAME,
@@ -116,6 +157,10 @@ export async function getProductElementsForClient(clientId: number): Promise<Pro
 			name: item.name
 		});
 	}
+	for (const result of results) {
+		result.children = await getChildProductElements(result);
+	}
+	cacheProductElements(clientId, results);
 	return results;
 }
 
@@ -280,7 +325,7 @@ export async function getProductElementsForWorkItem(workItemId: number): Promise
 			RequestItems: {
 				[TABLE_NAME]: {
 					Keys: peKeys,
-					ProjectionExpression: 'EntityId, #n, clientId, clientName',
+					ProjectionExpression: 'PK, #n, clientId, clientName',
 					ExpressionAttributeNames: { '#n': 'name' }
 				}
 			}
@@ -288,7 +333,7 @@ export async function getProductElementsForWorkItem(workItemId: number): Promise
 	);
 
 	return (batchResult.Responses?.[TABLE_NAME] || []).map((item) => ({
-		id: item.EntityId,
+		id: extractId(item.PK, 'PE'),
 		name: item.name,
 		clientId: item.clientId,
 		clientName: item.clientName

@@ -2,7 +2,8 @@ import { getClientName, getClients } from '$lib/server/repositories/clientReposi
 import { redirect } from '@sveltejs/kit';
 import { addWorkItem, getWorkItemById } from '$lib/server/repositories/workItemRepository';
 import { getProductElementsForClient } from '$lib/server/repositories/productElementRepository';
-import { flatMapClientProductElements, workItemStatuses, workItemTypes } from '$lib/server/utils';
+import { workItemStatuses, workItemTypes } from '$lib/server/utils';
+import type { ProductElement } from '../../../types';
 
 export async function load({ url }) {
 	const clientIdParam = url.searchParams.get('clientId');
@@ -15,9 +16,22 @@ export async function load({ url }) {
 
 	const clients = await getClients();
 
-	const clientProductElements = flatMapClientProductElements(
-		clientId ? await getProductElementsForClient(clientId, false) : []
-	);
+	type ProductElementWithNestingLevel = ProductElement & { nestingLevel: number };
+	const topLevelClientProductElements  = (clientId ? await getProductElementsForClient(clientId) : [])
+	const clientProductElements: ProductElementWithNestingLevel[] = [];
+
+	const flattenAndAddNestingLevel = (pe: ProductElement, nestingLevel: number) => {
+		clientProductElements.push({ ...pe, nestingLevel });
+		const childNestingLevel = nestingLevel + 1;
+		for (const child of pe.children ?? []) {
+			flattenAndAddNestingLevel(child, childNestingLevel);
+		}
+	}
+
+	for (const pe of topLevelClientProductElements) {
+		flattenAndAddNestingLevel(pe, 0);
+	}
+
 	return {
 		clientId,
 		clients,
@@ -52,7 +66,7 @@ export const actions = {
 			status: 'NEW'
 		});
 
-		const redirectUrl = parentId ? `/work-items/${parentId}` : '/work-items';
+		const redirectUrl = parentId ? `/work-items/${parentId}` : `/work-items?clientId=${clientId}`;
 
 		redirect(303, redirectUrl);
 	}

@@ -82,6 +82,7 @@ export async function addWorkItemDocument(item: WorkItemDocument): Promise<numbe
 				name: item.name,
 				type: item.type,
 				content: item.content,
+				summary: item.summary ?? null,
 				createdAt: new Date().toISOString(),
 				updatedAt: new Date().toISOString()
 			}
@@ -180,7 +181,6 @@ export async function updateWorkItem(item: WorkItem) {
 			}
 		});
 	}
-	console.log('update transact items', JSON.stringify(transactItems));
 	await dynamoDBDocumentClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
 }
 
@@ -193,18 +193,19 @@ export async function updateWorkItemDocument(item: WorkItemDocument) {
 				SK: `DOC#${item.id}`
 			},
 			UpdateExpression:
-				'set #name = :name, #type = :type, #content = :content, #updatedAt = :updatedAt',
+				'set #name = :name, #type = :type, #content = :content, #updatedAt = :updatedAt, summary = :summary',
 			ExpressionAttributeNames: {
 				'#name': 'name',
 				'#type': 'type',
 				'#content': 'content',
-				'#updatedAt': 'updatedAt'
+				'#updatedAt': 'updatedAt',
 			},
 			ExpressionAttributeValues: {
 				':name': item.name,
 				':type': item.type,
 				':content': item.content,
-				':updatedAt': new Date().toISOString()
+				':updatedAt': new Date().toISOString(),
+				':summary': item.summary ?? null
 			}
 		})
 	);
@@ -316,7 +317,7 @@ export async function getWorkItemById(id: number): Promise<WorkItem> {
 		parentName: getResponse.Item.parentName,
 		clientId: getResponse.Item.clientId,
 		clientName: getResponse.Item.clientName,
-		description: getResponse.Item.description
+		description: getResponse.Item.description,
 	};
 	workItem.documents = await getWorkItemDocuments(id);
 	workItem.children = await getChildWorkItems(workItem, null);
@@ -337,7 +338,7 @@ export async function getWorkItemDocuments(workItemId: number): Promise<WorkItem
 				':parentKey': `WI#${workItemId}`,
 				':docPrefix': 'DOC#'
 			},
-			ProjectionExpression: 'PK, SK, #name, #type, #content',
+			ProjectionExpression: 'PK, SK, #name, #type, #content, summary',
 			ScanIndexForward: true
 		})
 	);
@@ -347,7 +348,8 @@ export async function getWorkItemDocuments(workItemId: number): Promise<WorkItem
 			name: item.name,
 			type: item.type,
 			content: item.content,
-			workItemId: workItemId
+			workItemId: workItemId,
+			summary: item.summary ?? null,
 		};
 	});
 }

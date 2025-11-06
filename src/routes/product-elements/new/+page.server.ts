@@ -35,7 +35,7 @@ export const actions = {
 
 		const clientName = await getClientName(clientId);
 		await addProductElement({ name, clientId, clientName, parentId, parentName });
-		const redirectUrl = parentId ? `/product-elements/${parentId}` : `/product-elements`;
+		const redirectUrl = parentId ? `/product-elements/${parentId}` : `/product-elements?clientId=${clientId}`;
 
 		redirect(303, redirectUrl);
 	}

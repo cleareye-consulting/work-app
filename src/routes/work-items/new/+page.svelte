@@ -46,7 +46,7 @@
 	<div>
 		<Select name="productElementIds" label="Product Elements" multiple>
 			{#each data.clientProductElements as clientProductElement (clientProductElement.id)}
-				<option value={clientProductElement.id}>{clientProductElement.label}</option>
+				<option value={clientProductElement.id}>{' > '.repeat(clientProductElement.nestingLevel) + clientProductElement.name}</option>
 			{/each}
 		</Select>
 	</div>
