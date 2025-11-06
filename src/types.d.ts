@@ -8,10 +8,10 @@ export interface Client {
 export interface ProductElement {
 	id?: number;
 	clientId: number;
-	clientName?: string;
+	clientName: string;
 	name: string;
-	parentProductElementId?: number;
-	parentProductElementName?: string;
+	parentId?: number;
+	parentName?: string;
 	documents?: ProductElementDocument[];
 	children?: ProductElement[];
 }
@@ -23,7 +23,7 @@ export interface WorkItem {
 	status: string;
 	description?: string;
 	clientId: number;
-	clientName?: string;
+	clientName: string;
 	parentId?: number;
 	parentName?: string;
 	productElementIds?: number[];

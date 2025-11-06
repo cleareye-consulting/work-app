@@ -23,7 +23,7 @@
 <ContentHeader>New Work Item</ContentHeader>
 
 <form method="POST">
-	<input type="hidden" name="parentId" value={data.parentId}/>
+	<input type="hidden" name="parentId" value={data.parentId} />
 	<div>
 		<Input name="parentName" readonly value={data.parentName}>Parent</Input>
 	</div>
@@ -46,8 +46,8 @@
 	<div>
 		<Select name="productElementIds" label="Product Elements" multiple>
 			{#each data.clientProductElements as clientProductElement (clientProductElement.id)}
-				<option value={clientProductElement.id}>{clientProductElement.label}</option>
-				{/each}
+				<option value={clientProductElement.id}>{' > '.repeat(clientProductElement.nestingLevel) + clientProductElement.name}</option>
+			{/each}
 		</Select>
 	</div>
 	<div>

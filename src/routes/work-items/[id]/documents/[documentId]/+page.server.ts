@@ -7,8 +7,9 @@ import {
 import { generateDocumentSummary } from '$lib/server/ai';
 
 export async function load({params}) {
+	const workItemId = params.id
 	const documentId = params.documentId
-	const document = await getWorkItemDocumentById(documentId);
+	const document = await getWorkItemDocumentById(+workItemId, +documentId);
 	return {
 		document
 	}

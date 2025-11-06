@@ -19,12 +19,12 @@
 	<input type="hidden" name="type" value={data.workItem?.type}/>
 	<input type="hidden" name="name" value={data.workItem?.name}/>
 	<div>
-		<Select name="productElementIds" label="Product Elements" multiple disabled>
+		<Select name="productElementIds" label="Product Elements" multiple >
 			{#each data.clientProductElements as clientProductElement (clientProductElement.id)}
 				<option
 					value={clientProductElement.id}
 					selected={data.workItemProductElements.some(wipe => wipe.id === clientProductElement.id)}>
-					{clientProductElement.label}</option>
+					{' > '.repeat(clientProductElement.nestingLevel)}{clientProductElement.name}</option>
 			{/each}
 		</Select>
 	</div>
