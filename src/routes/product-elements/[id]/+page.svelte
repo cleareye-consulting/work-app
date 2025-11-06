@@ -18,7 +18,9 @@
 <hr class="my-4" />
 <h3 class="text-2xl">Documents</h3>
 {#each (data.productElement?.documents ?? []) as document (document.id)}
+	<div class="flex items-center gap-2">
 	<A href={`/product-elements/${data.productElement.id}/documents/${document.id}`}>{document.name}</A>
+	</div>
 {/each}
 <div class="flex items-center gap-2 mt-4">
 	<A href={`/product-elements/${data.productElement.id}/documents/new`}>New Document</A>
