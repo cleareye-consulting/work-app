@@ -1,9 +1,19 @@
+import {env} from '$env/dynamic/private'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
-const client = new DynamoDBClient({
-	profile: 'cleareye-workapp-account'
-});
+const awsConfig = env.AWS_PROFILE
+	? { profile: env.AWS_PROFILE }
+	: {
+			credentials: {
+				accessKeyId: env.AWS_ACCESS_KEY_ID ?? '',
+				secretAccessKey: env.AWS_SECRET_ACCESS_KEY ?? ''
+			},
+			region: env.AWS_REGION ?? '',
+	};
+
+const client = new DynamoDBClient(awsConfig);
+
 
 // This client is instantiated ONCE when the module loads
 export const dynamoDBDocumentClient = DynamoDBDocumentClient.from(client);
