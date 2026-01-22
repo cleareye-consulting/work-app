@@ -111,7 +111,6 @@ async function getCurrentPELinks(workItemId: number): Promise<string[]> {
 
 export async function updateWorkItem(item: WorkItem) {
 	const workItemPK = `WI#${item.id}`;
-	const searchKey = getSearchKey(item, workItemPK);
 	const now = new Date().toISOString();
 
 	const currentPEIds = await getCurrentPELinks(item.id!);
@@ -120,33 +119,30 @@ export async function updateWorkItem(item: WorkItem) {
 	const idsToAdd = newPEIds.filter((id) => !currentPEIds.includes(id));
 	const idsToRemove = currentPEIds.filter((id) => !newPEIds.includes(id));
 
-	const transactItems = [];
+	const fieldsToUpdate = {...item, updatedAt: now, searchKey: getSearchKey(item, workItemPK) };
 
-	transactItems.push({
-		Update: {
-			TableName: TABLE_NAME,
-			Key: { PK: workItemPK, SK: 'METADATA' },
-			UpdateExpression:
-				'SET searchKey = :searchKey, #n = :n, #t = :t, #s = :s, clientId = :cid, clientName = :cn, parentId = :pid, parentName = :pn, description = :desc, updatedAt = :updatedAt',
-			ExpressionAttributeNames: {
-				'#n': 'name',
-				'#t': 'type',
-				'#s': 'status'
-			},
-			ExpressionAttributeValues: {
-				':searchKey': searchKey,
-				':n': item.name,
-				':t': item.type,
-				':s': item.status,
-				':cid': item.clientId,
-				':cn': item.clientName,
-				':pid': item.parentId ?? TOP_LEVEL_PARENT_ID,
-				':pn': item.parentName ?? TOP_LEVEL_PARENT_NAME,
-				':desc': item.description ?? null,
-				':updatedAt': now
+	const expressions: string[] = [];
+	const attributeNames: Record<string, string> = {};
+	const attributeValues: Record<string, unknown> = {};
+
+	for (const [key, value] of Object.entries(fieldsToUpdate)) {
+		// We use # to avoid conflicts with DynamoDB reserved words (like 'name', 'status', 'type')
+		expressions.push(`#${key} = :${key}`);
+		attributeNames[`#${key}`] = key;
+		attributeValues[`:${key}`] = value ?? null; // DynamoDB doesn't like undefined
+	}
+
+	const transactItems = [];
+	transactItems.push(
+		{
+			Update: {
+				TableName: TABLE_NAME,
+				Key: { PK: workItemPK, SK: 'METADATA' },
+				UpdateExpression: `SET ${expressions.join(', ')}`,
+				ExpressionAttributeNames: attributeNames,
+				ExpressionAttributeValues: attributeValues
 			}
-		}
-	});
+		});
 
 	for (const peId of idsToRemove) {
 		// Delete the WI#<id> | PE#<id> link
