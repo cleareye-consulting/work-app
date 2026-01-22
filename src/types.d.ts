@@ -15,11 +15,23 @@ export interface ProductElement {
 	documents?: ProductElementDocument[];
 	children?: ProductElement[];
 }
+interface BugFields {
+	type: 'BUG';
+	severity: 'LOW' | 'HIGH' | 'CRITICAL';
+	reproSteps: string;
+}
 
-export interface WorkItem {
+interface StoryFields {
+	type: 'STORY';
+	points: number;
+	acceptanceCriteria: string;
+}
+
+export type WorkItemType = 'BUG' | 'STORY' | 'PROJECT' | 'TASK' | 'EPIC' | 'ISSUE' | 'NFR';
+
+export interface BaseWorkItem {
 	id?: number;
 	name: string;
-	type: string;
 	status: string;
 	description?: string;
 	clientId: number;
@@ -30,6 +42,8 @@ export interface WorkItem {
 	documents?: WorkItemDocument[];
 	children?: WorkItem[];
 }
+
+export type WorkItem = BaseWorkItem & (BugFields | StoryFields | { type: WorkItemType});
 
 export interface Document {
 	id?: number;

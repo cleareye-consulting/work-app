@@ -7,6 +7,7 @@
 	import TH from '../../../components/TH.svelte';
 	import TD from '../../../components/TD.svelte';
 	import TextArea from '../../../components/TextArea.svelte';
+	import Input from '../../../components/Input.svelte';
 	const { data } = $props();
 	const childItemsSorted = $derived(
 		data.workItem.children?.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)) ?? []
@@ -16,7 +17,7 @@
 	);
 </script>
 
-<ContentHeader>{data?.workItem?.type}: {data.workItem?.name}</ContentHeader>
+<ContentHeader>{data?.workItem?.type} {data?.workItem?.id}: {data.workItem?.name}</ContentHeader>
 
 <form method="post">
 	<input type="hidden" name="id" value={data.workItem?.id} />
@@ -24,20 +25,7 @@
 	<input type="hidden" name="parentId" value={data.workItem?.parentId} />
 	<input type="hidden" name="type" value={data.workItem?.type} />
 	<input type="hidden" name="name" value={data.workItem?.name} />
-	<div>
-		<Select name="productElementIds" label="Product Elements" multiple>
-			{#each data.clientProductElements as clientProductElement (clientProductElement.id)}
-				<option
-					value={clientProductElement.id}
-					selected={data.workItemProductElements.some(
-						(wipe) => wipe.id === clientProductElement.id
-					)}
-				>
-					{' > '.repeat(clientProductElement.nestingLevel)}{clientProductElement.name}</option
-				>
-			{/each}
-		</Select>
-	</div>
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 	<div>
 		<Select name="status" label="Status">
 			{#each data.workItemStatuses as workItemStatus (workItemStatus)}
@@ -49,6 +37,29 @@
 	</div>
 	<div>
 		<TextArea name="description" value={data.workItem.description}>Description</TextArea>
+	</div>
+		<div>
+			<Select name="productElementIds" label="Product Elements" multiple>
+				{#each data.clientProductElements as clientProductElement (clientProductElement.id)}
+					<option
+						value={clientProductElement.id}
+						selected={data.workItemProductElements.some(
+						(wipe) => wipe.id === clientProductElement.id
+					)}
+					>
+						{' > '.repeat(clientProductElement.nestingLevel)}{clientProductElement.name}</option
+					>
+				{/each}
+			</Select>
+		</div>
+		{#if data.workItem?.type === 'STORY'}
+			<div>
+				<Input name="points" type="number" value={data.workItem.points}>Points</Input>
+			</div>
+			<div>
+				<TextArea name="acceptanceCriteria" value={data.workItem.acceptanceCriteria}>Acceptance Criteria</TextArea>
+			</div>
+  	{/if}
 	</div>
 	<div>
 		<Button>Update</Button>
@@ -66,6 +77,7 @@
 	<Table>
 		<thead>
 			<tr>
+				<TH>ID</TH>
 				<TH>Name</TH>
 				<TH>Type</TH>
 				<TH>Status</TH>
@@ -74,6 +86,7 @@
 		<tbody>
 			{#each childItemsSorted as child (child.id)}
 				<tr>
+					<TD>{child.id}</TD>
 					<TD><A href={`/work-items/${child.id}`}>{child.name}</A></TD>
 					<TD>{child.type}</TD>
 					<TD>{child.status}</TD>

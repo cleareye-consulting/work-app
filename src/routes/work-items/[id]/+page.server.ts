@@ -9,7 +9,7 @@ import {
 } from '$lib/server/repositories/productElementRepository';
 import { redirect } from '@sveltejs/kit';
 import { getClientName } from '$lib/server/repositories/clientRepository.js';
-import type { ProductElement } from '../../../types';
+import type { ProductElement, WorkItemType } from '../../../types';
 
 export async function load({ params }) {
 	const id = params.id;
@@ -44,18 +44,34 @@ export async function load({ params }) {
 }
 export const actions = {
 	default: async ({ request }) => {
-		const data = await request.formData();
-		const id = +(data.get('id') as string);
-		const name = data.get('name') as string;
-		const description = data.get('description') as string;
-		const type = data.get('type') as string;
-		const parentIdFormValue: string | null = data.get('parentId') as string;
-		const parentId = parentIdFormValue ? +parentIdFormValue : undefined;
-		const clientId = +(data.get('clientId') as string);
-		const status = data.get('status') as string;
-		const productElementIds = data.getAll('productElementIds').map((id) => +(id as string));
-		const clientName = await getClientName(clientId);
-		await updateWorkItem({ id, name, type, parentId, clientId, clientName, status, description, productElementIds });
+		const formData = await request.formData();
+		const rawData = Object.fromEntries(formData.entries());
+
+		const {
+			id,
+			name,
+			description,
+			type,
+			parentId,
+			clientId,
+			status,
+			...customFields
+		} = rawData;
+
+		const workItemUpdate = {
+			id: +id,
+			name: name as string,
+			type: type as WorkItemType,
+			description: description as string,
+			status: status as string,
+			clientId: +clientId,
+			parentId: parentId ? +parentId : undefined,
+			productElementIds: formData.getAll('productElementIds').map(Number)
+		};
+		console.log(workItemUpdate);
+
+		const clientName = await getClientName(workItemUpdate.clientId);
+		await updateWorkItem({...workItemUpdate, ...customFields, clientName});
 
 		const redirectUrl = parentId ? `/work-items/${parentId}` : `/work-items?clientId=${clientId}`;
 		redirect(303, redirectUrl);
