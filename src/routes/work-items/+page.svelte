@@ -41,6 +41,7 @@
 	<Table>
 		<thead>
 			<tr>
+				<TH>ID</TH>
 				<TH>Name</TH>
 				<TH>Type</TH>
 				<TH>Status</TH>
@@ -49,6 +50,7 @@
 		<tbody>
 			{#each data.workItems as element, i (i)}
 				<tr class="cursor-pointer border-b hover:bg-gray-50">
+					<TD>{element.id}</TD>
 					<TD><A href="/work-items/{element.id}">{element.name}</A></TD>
 					<TD>{element.type}</TD>
 					<TD>{element.status}</TD>

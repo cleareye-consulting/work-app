@@ -16,7 +16,7 @@
 	);
 </script>
 
-<ContentHeader>{data?.workItem?.type}: {data.workItem?.name}</ContentHeader>
+<ContentHeader>{data?.workItem?.type} {data?.workItem?.id}: {data.workItem?.name}</ContentHeader>
 
 <form method="post">
 	<input type="hidden" name="id" value={data.workItem?.id} />
@@ -52,6 +52,7 @@
 	<Table>
 		<thead>
 			<tr>
+				<TH>ID</TH>
 				<TH>Name</TH>
 				<TH>Type</TH>
 				<TH>Status</TH>
@@ -60,6 +61,7 @@
 		<tbody>
 			{#each childItemsSorted as child (child.id)}
 				<tr>
+					<TD>{child.id}</TD>
 					<TD><A href={`/work-items/${child.id}`}>{child.name}</A></TD>
 					<TD>{child.type}</TD>
 					<TD>{child.status}</TD>
