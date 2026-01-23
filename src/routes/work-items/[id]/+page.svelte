@@ -25,20 +25,6 @@
 	<input type="hidden" name="type" value={data.workItem?.type} />
 	<input type="hidden" name="name" value={data.workItem?.name} />
 	<div>
-		<Select name="productElementIds" label="Product Elements" multiple>
-			{#each data.clientProductElements as clientProductElement (clientProductElement.id)}
-				<option
-					value={clientProductElement.id}
-					selected={data.workItemProductElements.some(
-						(wipe) => wipe.id === clientProductElement.id
-					)}
-				>
-					{' > '.repeat(clientProductElement.nestingLevel)}{clientProductElement.name}</option
-				>
-			{/each}
-		</Select>
-	</div>
-	<div>
 		<Select name="status" label="Status">
 			{#each data.workItemStatuses as workItemStatus (workItemStatus)}
 				<option value={workItemStatus} selected={data.workItem?.status === workItemStatus}

@@ -40,34 +40,13 @@ export async function addWorkItem(item: WorkItem): Promise<number> {
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString()
 	};
-	const peLinkItems = [];
-	for (const peId of item.productElementIds ?? []) {
-		peLinkItems.push({
-			PK: `PE#${peId}`,
-			SK: `WI#${newId}`,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString()
-		});
-		peLinkItems.push({
-			PK: `WI#${newId}`,
-			SK: `PE#${peId}`,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString()
-		});
-	}
 
 	await dynamoDBDocumentClient.send(
-		new TransactWriteCommand({
-			TransactItems: [metaDataItem, ...peLinkItems].map((item) => {
-				return {
-					Put: {
-						TableName: TABLE_NAME,
-						Item: item
-					}
-				};
-			})
+		new PutCommand({
+			TableName: TABLE_NAME,
+			Item: metaDataItem
 		})
-	);
+	)
 	return newId;
 }
 
@@ -91,97 +70,34 @@ export async function addWorkItemDocument(item: WorkItemDocument): Promise<numbe
 	return newId;
 }
 
-// Helper function to safely fetch existing PE links
-async function getCurrentPELinks(workItemId: number): Promise<string[]> {
-	// Query the main table for all SKs starting with 'PE#' for this Work Item
-	const queryResult = await dynamoDBDocumentClient.send(
-		new QueryCommand({
-			TableName: TABLE_NAME,
-			KeyConditionExpression: 'PK = :pk AND begins_with(SK, :pePrefix)',
-			ExpressionAttributeValues: {
-				':pk': `WI#${workItemId}`,
-				':pePrefix': 'PE#'
-			},
-			ProjectionExpression: 'SK' // Only need the Sort Key
-		})
-	);
-
-	return (queryResult.Items || []).map((item) => item.SK.split('#')[1]);
-}
-
 export async function updateWorkItem(item: WorkItem) {
-	const workItemPK = `WI#${item.id}`;
-	const searchKey = getSearchKey(item, workItemPK);
+	const pk = `WI#${item.id}`;
 	const now = new Date().toISOString();
 
-	const currentPEIds = await getCurrentPELinks(item.id!);
-	const newPEIds = item.productElementIds ? item.productElementIds.map((id) => String(id)) : [];
-
-	const idsToAdd = newPEIds.filter((id) => !currentPEIds.includes(id));
-	const idsToRemove = currentPEIds.filter((id) => !newPEIds.includes(id));
-
-	const transactItems = [];
-
-	transactItems.push({
-		Update: {
+	await dynamoDBDocumentClient.send(
+		new UpdateCommand({
 			TableName: TABLE_NAME,
-			Key: { PK: workItemPK, SK: 'METADATA' },
-			UpdateExpression:
-				'SET searchKey = :searchKey, #n = :n, #t = :t, #s = :s, clientId = :cid, clientName = :cn, parentId = :pid, parentName = :pn, description = :desc, updatedAt = :updatedAt',
+			Key: { PK: pk, SK: 'METADATA' },
+			UpdateExpression: `SET 
+      #n = :n, 
+      #t = :t, 
+      #s = :s, 
+      description = :desc, 
+      updatedAt = :updatedAt`,
 			ExpressionAttributeNames: {
 				'#n': 'name',
 				'#t': 'type',
 				'#s': 'status'
 			},
 			ExpressionAttributeValues: {
-				':searchKey': searchKey,
 				':n': item.name,
 				':t': item.type,
 				':s': item.status,
-				':cid': item.clientId,
-				':cn': item.clientName,
-				':pid': item.parentId ?? TOP_LEVEL_PARENT_ID,
-				':pn': item.parentName ?? TOP_LEVEL_PARENT_NAME,
-				':desc': item.description ?? null,
+				':desc': item.description || null,
 				':updatedAt': now
 			}
-		}
-	});
-
-	for (const peId of idsToRemove) {
-		// Delete the WI#<id> | PE#<id> link
-		transactItems.push({
-			Delete: {
-				TableName: TABLE_NAME,
-				Key: { PK: workItemPK, SK: `PE#${peId}` }
-			}
-		});
-		// Delete the PE#<id> | WI#<id> link
-		transactItems.push({
-			Delete: {
-				TableName: TABLE_NAME,
-				Key: { PK: `PE#${peId}`, SK: workItemPK }
-			}
-		});
-	}
-
-	for (const peId of idsToAdd) {
-		// Put the WI#<id> | PE#<id> link
-		transactItems.push({
-			Put: {
-				TableName: TABLE_NAME,
-				Item: { PK: workItemPK, SK: `PE#${peId}`, createdAt: now, updatedAt: now }
-			}
-		});
-		// Put the PE#<id> | WI#<id> link
-		transactItems.push({
-			Put: {
-				TableName: TABLE_NAME,
-				Item: { PK: `PE#${peId}`, SK: workItemPK, createdAt: now, updatedAt: now }
-			}
-		});
-	}
-	await dynamoDBDocumentClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+		})
+	);
 }
 
 export async function updateWorkItemDocument(item: WorkItemDocument) {

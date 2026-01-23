@@ -44,13 +44,6 @@
 		</Select>
 	</div>
 	<div>
-		<Select name="productElementIds" label="Product Elements" multiple>
-			{#each data.clientProductElements as clientProductElement (clientProductElement.id)}
-				<option value={clientProductElement.id}>{' > '.repeat(clientProductElement.nestingLevel) + clientProductElement.name}</option>
-			{/each}
-		</Select>
-	</div>
-	<div>
 		<Input name="name" required>Name</Input>
 	</div>
 	<div>
