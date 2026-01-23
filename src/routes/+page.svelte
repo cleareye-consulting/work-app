@@ -7,6 +7,5 @@
 
 <ul>
 	<li><A href="/clients">Clients</A></li>
-	<li><A href="/product-elements">Product Elements</A></li>
 	<li><A href="/work-items">Work Items</A></li>
 </ul>
