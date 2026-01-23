@@ -1,3 +1,4 @@
+import { env } from '$env/dynamic/private';
 import { getWorkItemById, updateWorkItem } from '$lib/server/repositories/workItemRepository';
 import {
 	getActiveStatuses,
@@ -17,7 +18,10 @@ export async function load({ params }) {
 			documents: workItem.documents,
 			children: workItem.children?.filter((wi) => activeStatuses.includes(wi.status))
 		},
-		workItemStatuses: workItemStatuses
+		workItemStatuses: workItemStatuses,
+		featureFlags: {
+			reparentWorkItems: env.FF_REPARENT_WORK_ITEMS === 'true'
+		}
 	};
 }
 export const actions = {
