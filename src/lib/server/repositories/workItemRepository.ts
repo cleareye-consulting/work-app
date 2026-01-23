@@ -11,7 +11,6 @@ import {
 	GetCommand,
 	PutCommand,
 	QueryCommand,
-	TransactWriteCommand,
 	UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import { getActiveStatuses } from '../utils';
@@ -82,17 +81,21 @@ export async function updateWorkItem(item: WorkItem) {
       #n = :n, 
       #t = :t, 
       #s = :s, 
+      searchKey = :sk,
+      parentId = :pid,
       description = :desc, 
       updatedAt = :updatedAt`,
 			ExpressionAttributeNames: {
 				'#n': 'name',
 				'#t': 'type',
-				'#s': 'status'
+				'#s': 'status',
 			},
 			ExpressionAttributeValues: {
 				':n': item.name,
 				':t': item.type,
 				':s': item.status,
+				':sk': getSearchKey(item, pk),
+				':pid': item.parentId ?? TOP_LEVEL_PARENT_ID,
 				':desc': item.description || null,
 				':updatedAt': now
 			}

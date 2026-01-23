@@ -7,6 +7,7 @@
 	import TH from '../../../components/TH.svelte';
 	import TD from '../../../components/TD.svelte';
 	import TextArea from '../../../components/TextArea.svelte';
+	import Input from '../../../components/Input.svelte';
 	const { data } = $props();
 	const childItemsSorted = $derived(
 		data.workItem.children?.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)) ?? []
@@ -21,9 +22,15 @@
 <form method="post">
 	<input type="hidden" name="id" value={data.workItem?.id} />
 	<input type="hidden" name="clientId" value={data.workItem?.clientId} />
-	<input type="hidden" name="parentId" value={data.workItem?.parentId} />
 	<input type="hidden" name="type" value={data.workItem?.type} />
 	<input type="hidden" name="name" value={data.workItem?.name} />
+	{#if data.featureFlags.reparentWorkItems}
+	<div>
+		<Input type="text" name="parentId" label="Parent ID" value={data.workItem?.parentId}>Parent</Input>
+	</div>
+	{:else}
+		<input type="hidden" name="parentId" value={data.workItem?.parentId} />
+	{/if}
 	<div>
 		<Select name="status" label="Status">
 			{#each data.workItemStatuses as workItemStatus (workItemStatus)}
