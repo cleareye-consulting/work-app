@@ -27,6 +27,7 @@
 	<div>
 		<Input name="parentName" readonly value={data.parentName}>Parent</Input>
 	</div>
+	{#if !data.parentId}
 	<div>
 		<Select name="clientId" label="Client" onchange={handleClientChange}>
 			<option value="">Select Client</option>
@@ -35,6 +36,9 @@
 			{/each}
 		</Select>
 	</div>
+	{:else}
+		<input type="hidden" name="clientId" value={data.clientId} />
+	{/if}
 	<div>
 		<Select name="type" label="Work Item Type" required>
 			<option value="">Select Work Item Type</option>

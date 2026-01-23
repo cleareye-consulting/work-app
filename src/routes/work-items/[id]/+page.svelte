@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import ContentHeader from '../../../components/ContentHeader.svelte';
 	import A from '../../../components/A.svelte';
 	import Select from '../../../components/Select.svelte';
@@ -15,6 +15,10 @@
 	const documentsSorted = $derived(
 		data.workItem.documents?.sort((a, b) => (a.name < b.name ? 1 : -1)) ?? []
 	);
+	export function camelCaseToTitleCaseWithSpaces(input: string) {
+		const step1 = input.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
+		return step1.charAt(0).toUpperCase() + step1.slice(1);
+	}
 </script>
 
 <ContentHeader>{data?.workItem?.type} {data?.workItem?.id}: {data.workItem?.name}</ContentHeader>
@@ -24,6 +28,7 @@
 	<input type="hidden" name="clientId" value={data.workItem?.clientId} />
 	<input type="hidden" name="type" value={data.workItem?.type} />
 	<input type="hidden" name="name" value={data.workItem?.name} />
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 	{#if data.featureFlags.reparentWorkItems}
 	<div>
 		<Input type="text" name="parentId" label="Parent ID" value={data.workItem?.parentId}>Parent</Input>
@@ -42,6 +47,25 @@
 	</div>
 	<div>
 		<TextArea name="description" value={data.workItem.description}>Description</TextArea>
+	</div>
+		{#each data.workItemTypes[data.workItem?.type]?.customFields as field (field.name)}
+			<div>
+				{#if field.values}
+					<Select name={`cf_${field.name}`} label={camelCaseToTitleCaseWithSpaces(field.name)}>
+						<option value=""></option>
+						{#each field.values as value (value)}
+							<option value={value} selected={data.workItem.customFields[field.name] === String(value)}>{value}</option>
+							{/each}
+					</Select>
+					{:else if field.multiline}
+					<TextArea name={`cf_${field.name}`} value={data.workItem.customFields[field.name]}>{camelCaseToTitleCaseWithSpaces(field.name)} </TextArea>
+					{:else}
+				<Input type={field.type} name={`cf_${field.name}`} value={data.workItem.customFields[field.name]}>
+					{camelCaseToTitleCaseWithSpaces(field.name)}
+				</Input>
+					{/if}
+			</div>
+		{/each}
 	</div>
 	<div>
 		<Button>Update</Button>

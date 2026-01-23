@@ -13,13 +13,20 @@ export async function load({ url }) {
 	const clientId = parent?.clientId ?? (clientIdParam ? parseInt(clientIdParam, 10) : null);
 
 	const clients = await getClients();
+	const parentTypeKey = parent?.type ?? '_CLIENT_';
+	const validWorkItemTypes: string[] = []
+	for (const workItemTypeLabel in workItemTypes) {
+		if (workItemTypes[workItemTypeLabel].parentTypes.includes(parentTypeKey)) {
+			validWorkItemTypes.push(workItemTypeLabel);
+		}
+	}
 
 	return {
 		clientId,
 		clients,
 		parentId,
 		parentName: parent?.name,
-		workItemTypes: workItemTypes,
+		workItemTypes: validWorkItemTypes,
 		workItemStatuses: workItemStatuses
 	};
 }
@@ -41,7 +48,8 @@ export const actions = {
 			parentId,
 			type,
 			description,
-			status: 'NEW'
+			status: 'NEW',
+			customFields: {},
 		});
 
 		const redirectUrl = parentId ? `/work-items/${parentId}` : `/work-items?clientId=${clientId}`;
