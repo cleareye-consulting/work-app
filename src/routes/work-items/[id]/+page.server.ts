@@ -1,16 +1,12 @@
 import { env } from '$env/dynamic/private';
 import { getWorkItemById, updateWorkItem } from '$lib/server/repositories/workItemRepository';
-import {
-	getActiveStatuses,
-	workItemStatuses
-} from '$lib/server/utils';
+import { getActiveStatuses, workItemStatuses, workItemTypes } from '$lib/server/utils';
 import { redirect } from '@sveltejs/kit';
 import { getClientName } from '$lib/server/repositories/clientRepository.js';
 
 export async function load({ params }) {
 	const id = params.id;
 	const workItem = await getWorkItemById(+id);
-
 	const activeStatuses = getActiveStatuses();
 	return {
 		workItem: {
@@ -19,6 +15,7 @@ export async function load({ params }) {
 			children: workItem.children?.filter((wi) => activeStatuses.includes(wi.status))
 		},
 		workItemStatuses: workItemStatuses,
+		workItemTypes: workItemTypes,
 		featureFlags: {
 			reparentWorkItems: env.FF_REPARENT_WORK_ITEMS === 'true'
 		}
@@ -26,19 +23,32 @@ export async function load({ params }) {
 }
 export const actions = {
 	default: async ({ request }) => {
-		const data = await request.formData();
-		const id = +(data.get('id') as string);
-		const name = data.get('name') as string;
-		const description = data.get('description') as string;
-		const type = data.get('type') as string;
-		const parentIdFormValue: string | null = data.get('parentId') as string;
-		const parentId = parentIdFormValue ? +parentIdFormValue : undefined;
-		const clientId = +(data.get('clientId') as string);
-		const status = data.get('status') as string;
-		const clientName = await getClientName(clientId);
-		await updateWorkItem({ id, name, type, parentId, clientId, clientName, status, description });
+		const formData = await request.formData();
+		const rawData = Object.fromEntries(formData.entries());
+		const customFields: Record<string, string | number | boolean | null> = {};
+		const clientName = await getClientName(+rawData.clientId);
+		const workItemUpdate = {
+			id: +rawData.id,
+			name: rawData.name as string,
+			description: rawData.description as string,
+			type: rawData.type as string,
+			status: rawData.status as string,
+			clientId: +rawData.clientId,
+			clientName,
+			parentId: rawData.parentId ? +rawData.parentId : undefined,
+			customFields
+		};
 
-		const redirectUrl = parentId ? `/work-items/${parentId}` : `/work-items?clientId=${clientId}`;
+		for (const [key, value] of Object.entries(rawData)) {
+			if (key.startsWith('cf_')) {
+				const actualKey = key.replace('cf_', '');
+				workItemUpdate.customFields[actualKey] = value as string | number | boolean | null;
+			}
+		}
+
+		await updateWorkItem(workItemUpdate);
+
+		const redirectUrl = workItemUpdate.parentId ? `/work-items/${workItemUpdate.parentId}` : `/work-items?clientId=${workItemUpdate.clientId}`;
 		redirect(303, redirectUrl);
 	}
 };

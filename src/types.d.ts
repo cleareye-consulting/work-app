@@ -15,6 +15,7 @@ export interface WorkItem {
 	clientName: string;
 	parentId?: number;
 	parentName?: string;
+	customFields: Record<string, unknown>;
 	documents?: WorkItemDocument[];
 	children?: WorkItem[];
 }

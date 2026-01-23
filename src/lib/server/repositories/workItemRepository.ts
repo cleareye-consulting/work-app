@@ -36,6 +36,7 @@ export async function addWorkItem(item: WorkItem): Promise<number> {
 		parentId: item.parentId ?? TOP_LEVEL_PARENT_ID,
 		parentName: item.parentName ?? TOP_LEVEL_PARENT_NAME,
 		description: item.description ?? null,
+		customFields: item.customFields ?? {},
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString()
 	};
@@ -72,7 +73,6 @@ export async function addWorkItemDocument(item: WorkItemDocument): Promise<numbe
 export async function updateWorkItem(item: WorkItem) {
 	const pk = `WI#${item.id}`;
 	const now = new Date().toISOString();
-
 	await dynamoDBDocumentClient.send(
 		new UpdateCommand({
 			TableName: TABLE_NAME,
@@ -84,11 +84,12 @@ export async function updateWorkItem(item: WorkItem) {
       searchKey = :sk,
       parentId = :pid,
       description = :desc, 
+      customFields = :cf,
       updatedAt = :updatedAt`,
 			ExpressionAttributeNames: {
 				'#n': 'name',
 				'#t': 'type',
-				'#s': 'status',
+				'#s': 'status'
 			},
 			ExpressionAttributeValues: {
 				':n': item.name,
@@ -97,6 +98,7 @@ export async function updateWorkItem(item: WorkItem) {
 				':sk': getSearchKey(item, pk),
 				':pid': item.parentId ?? TOP_LEVEL_PARENT_ID,
 				':desc': item.description || null,
+				':cf': item.customFields || {},
 				':updatedAt': now
 			}
 		})
@@ -165,7 +167,8 @@ export async function getTopLevelWorkItemsForClient(
 			clientId: item.clientId,
 			clientName: item.clientName,
 			parentId: item.parentId,
-			parentName: item.parentName
+			parentName: item.parentName,
+			customFields: {}
 		});
 	}
 	return results;
@@ -216,7 +219,7 @@ export async function getWorkItemById(id: number): Promise<WorkItem> {
 				SK: 'METADATA'
 			},
 			ProjectionExpression:
-				'PK, #name, #type, #status, clientId, clientName, parentId, parentName, description',
+				'PK, #name, #type, #status, clientId, clientName, parentId, parentName, description, customFields',
 			ExpressionAttributeNames: {
 				'#name': 'name',
 				'#type': 'type',
@@ -237,6 +240,7 @@ export async function getWorkItemById(id: number): Promise<WorkItem> {
 		clientId: getResponse.Item.clientId,
 		clientName: getResponse.Item.clientName,
 		description: getResponse.Item.description,
+		customFields: getResponse.Item.customFields || {},
 	};
 	workItem.documents = await getWorkItemDocuments(id);
 	workItem.children = await getChildWorkItems(workItem, null);
