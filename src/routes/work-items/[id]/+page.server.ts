@@ -10,10 +10,9 @@ export async function load({ params }) {
 	const activeStatuses = getActiveStatuses();
 	const retypeWorkItems = env.FF_RETYPE_WORK_ITEMS === 'true';
 	const validWorkItemTypes: string[] = [];
-	if (retypeWorkItems) {
-		for (const workItemTypeLabel in workItemTypes) {
-			//don't worry about whether it's valid, because there's nothing to check whether the rest of the chain is also valid.
-				validWorkItemTypes.push(workItemTypeLabel);
+	for (const workItemTypeLabel in workItemTypes) {
+		if (workItemTypes[workItemTypeLabel].parentTypes.includes(workItem.type) || retypeWorkItems) {
+			validWorkItemTypes.push(workItemTypeLabel);
 		}
 	}
 	return {
@@ -23,7 +22,7 @@ export async function load({ params }) {
 			children: workItem.children?.filter((wi) => activeStatuses.includes(wi.status))
 		},
 		workItemStatuses: workItemStatuses,
-		workItemTypes: validWorkItemTypes,
+		workItemTypes: workItemTypes,
 		featureFlags: {
 			reparentWorkItems: env.FF_REPARENT_WORK_ITEMS === 'true',
 			retypeWorkItems: retypeWorkItems,
