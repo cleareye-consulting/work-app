@@ -21,14 +21,23 @@
 	}
 </script>
 
-<ContentHeader>{data?.workItem?.type} {data?.workItem?.id}: {data.workItem?.name}</ContentHeader>
+<ContentHeader>{data?.workItem?.type}</ContentHeader>
 
 <form method="post">
 	<input type="hidden" name="id" value={data.workItem?.id} />
 	<input type="hidden" name="clientId" value={data.workItem?.clientId} />
-	<input type="hidden" name="type" value={data.workItem?.type} />
-	<input type="hidden" name="name" value={data.workItem?.name} />
+	{#if data.featureFlags.retypeWorkItems}
+		<Select name="type" label="Work Item Type" required>
+			<option value="">Select Work Item Type</option>
+			{#each data.workItemTypes as workItemType (workItemType)}
+				<option value={workItemType}>{workItemType}</option>
+			{/each}
+		</Select>
+		{:else}
+		<input type="hidden" name="type" value={data.workItem?.type} />
+	{/if}
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+		<Input type="text" name="name" label="Name" value={data.workItem?.name}>Name</Input>
 	{#if data.featureFlags.reparentWorkItems}
 	<div>
 		<Input type="text" name="parentId" label="Parent ID" value={data.workItem?.parentId}>Parent</Input>

@@ -8,6 +8,14 @@ export async function load({ params }) {
 	const id = params.id;
 	const workItem = await getWorkItemById(+id);
 	const activeStatuses = getActiveStatuses();
+	const retypeWorkItems = env.FF_RETYPE_WORK_ITEMS === 'true';
+	const validWorkItemTypes: string[] = [];
+	if (retypeWorkItems) {
+		for (const workItemTypeLabel in workItemTypes) {
+			//don't worry about whether it's valid, because there's nothing to check whether the rest of the chain is also valid.
+				validWorkItemTypes.push(workItemTypeLabel);
+		}
+	}
 	return {
 		workItem: {
 			...workItem,
@@ -15,9 +23,10 @@ export async function load({ params }) {
 			children: workItem.children?.filter((wi) => activeStatuses.includes(wi.status))
 		},
 		workItemStatuses: workItemStatuses,
-		workItemTypes: workItemTypes,
+		workItemTypes: validWorkItemTypes,
 		featureFlags: {
-			reparentWorkItems: env.FF_REPARENT_WORK_ITEMS === 'true'
+			reparentWorkItems: env.FF_REPARENT_WORK_ITEMS === 'true',
+			retypeWorkItems: retypeWorkItems,
 		}
 	};
 }

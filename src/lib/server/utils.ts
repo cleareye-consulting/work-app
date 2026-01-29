@@ -30,7 +30,7 @@ export const workItemTypes : workItemTypesList =  {
 		customFields: [
 			{name: 'rank', type: 'number'},
 			{name: 'points', type: 'number', values: [1, 2, 3, 5, 8, 13, 20]},
-			{name: 'acceptanceCriteria', type: 'string'}
+			{name: 'acceptanceCriteria', type: 'string', multiline: true}
 		],
 		parentTypes: ['PROJECT', 'FEATURE', 'EPIC'],
 	},
