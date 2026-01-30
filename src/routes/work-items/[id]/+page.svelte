@@ -29,7 +29,7 @@
 	{#if data.featureFlags.retypeWorkItems}
 		<Select name="type" label="Work Item Type" required>
 			<option value="">Select Work Item Type</option>
-			{#each data.workItemTypes as workItemType (workItemType)}
+			{#each Object.keys(data.workItemTypes) as workItemType (workItemType)}
 				<option value={workItemType}>{workItemType}</option>
 			{/each}
 		</Select>

@@ -8,13 +8,6 @@ export async function load({ params }) {
 	const id = params.id;
 	const workItem = await getWorkItemById(+id);
 	const activeStatuses = getActiveStatuses();
-	const retypeWorkItems = env.FF_RETYPE_WORK_ITEMS === 'true';
-	const validWorkItemTypes: string[] = [];
-	for (const workItemTypeLabel in workItemTypes) {
-		if (workItemTypes[workItemTypeLabel].parentTypes.includes(workItem.type) || retypeWorkItems) {
-			validWorkItemTypes.push(workItemTypeLabel);
-		}
-	}
 	return {
 		workItem: {
 			...workItem,
@@ -25,7 +18,7 @@ export async function load({ params }) {
 		workItemTypes: workItemTypes,
 		featureFlags: {
 			reparentWorkItems: env.FF_REPARENT_WORK_ITEMS === 'true',
-			retypeWorkItems: retypeWorkItems,
+			retypeWorkItems: env.FF_RETYPE_WORK_ITEMS === 'true'
 		}
 	};
 }

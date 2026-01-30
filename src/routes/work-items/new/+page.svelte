@@ -18,6 +18,14 @@
 		// eslint-disable-next-line svelte/no-navigation-without-resolve
 		goto(`?${params}`);
 	}
+	function camelCaseToTitleCaseWithSpaces(input: string) {
+		const step1 = input.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
+		return step1.charAt(0).toUpperCase() + step1.slice(1);
+	}
+	let selectedType = $state('')
+	function handleTypeChange(e: Event) {
+		selectedType = (e.target as HTMLSelectElement).value;
+	}
 </script>
 
 <ContentHeader>New Work Item</ContentHeader>
@@ -39,11 +47,12 @@
 	{:else}
 		<input type="hidden" name="clientId" value={data.clientId} />
 	{/if}
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 	<div>
-		<Select name="type" label="Work Item Type" required>
+		<Select name="type" label="Work Item Type" required onchange={handleTypeChange}>
 			<option value="">Select Work Item Type</option>
-			{#each data.workItemTypes as workItemType (workItemType)}
-				<option value={workItemType}>{workItemType}</option>
+			{#each data.workItemTypeOptions as workItemType (workItemType)}
+				<option value={workItemType} selected={workItemType === selectedType}>{workItemType}</option>
 			{/each}
 		</Select>
 	</div>
@@ -52,6 +61,25 @@
 	</div>
 	<div>
 		<TextArea name="description">Description</TextArea>
+	</div>
+		{#each (selectedType ? data.workItemTypes[selectedType]?.customFields : []) as field (field.name)}
+			<div>
+				{#if field.values}
+					<Select name={`cf_${field.name}`} label={camelCaseToTitleCaseWithSpaces(field.name)}>
+						<option value=""></option>
+						{#each field.values as value (value)}
+							<option value={value}>{value}</option>
+						{/each}
+					</Select>
+				{:else if field.multiline}
+					<TextArea name={`cf_${field.name}`}>{camelCaseToTitleCaseWithSpaces(field.name)} </TextArea>
+				{:else}
+					<Input type={field.type} name={`cf_${field.name}`}>
+						{camelCaseToTitleCaseWithSpaces(field.name)}
+					</Input>
+				{/if}
+			</div>
+		{/each}
 	</div>
 	<div>
 		<Button>Create</Button>
