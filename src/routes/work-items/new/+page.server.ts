@@ -14,10 +14,10 @@ export async function load({ url }) {
 
 	const clients = await getClients();
 	const parentTypeKey = parent?.type ?? '_CLIENT_';
-	const validWorkItemTypes: string[] = []
+	const workItemTypeOptions: string[] = []
 	for (const workItemTypeLabel in workItemTypes) {
 		if (workItemTypes[workItemTypeLabel].parentTypes.includes(parentTypeKey)) {
-			validWorkItemTypes.push(workItemTypeLabel);
+			workItemTypeOptions.push(workItemTypeLabel);
 		}
 	}
 
@@ -26,33 +26,42 @@ export async function load({ url }) {
 		clients,
 		parentId,
 		parentName: parent?.name,
-		workItemTypes: validWorkItemTypes,
+		workItemTypeOptions: workItemTypeOptions,
+		workItemTypes: workItemTypes,
 		workItemStatuses: workItemStatuses
 	};
 }
 
 export const actions = {
 	default: async ({ request }) => {
-		const data = await request.formData();
-		const name = data.get('name') as string;
-		const description = data.get('description') as string;
-		const clientId = +(data.get('clientId') as string);
-		const parentIdFormValue: string | null = data.get('parentId') as string;
-		const parentId = parentIdFormValue ? +parentIdFormValue : undefined;
-		const type = data.get('type') as string;
-		const clientName = await getClientName(clientId);
-		await addWorkItem({
-			name,
-			clientId,
-			clientName,
-			parentId,
-			type,
-			description,
-			status: 'NEW',
-			customFields: {},
-		});
+		const formData = await request.formData();
+		const rawData = Object.fromEntries(formData.entries());
+		const customFields: Record<string, string | number | boolean | null> = {};
+		const clientName = await getClientName(+rawData.clientId);
 
-		const redirectUrl = parentId ? `/work-items/${parentId}` : `/work-items?clientId=${clientId}`;
+		const newWorkItem = {
+			name: rawData.name as string,
+			description: rawData.description as string,
+			type: rawData.type as string,
+			status: 'NEW',
+			clientId: +rawData.clientId,
+			clientName,
+			parentId: rawData.parentId ? +rawData.parentId : undefined,
+			customFields
+		};
+
+		for (const [key, value] of Object.entries(rawData)) {
+			if (key.startsWith('cf_')) {
+				const actualKey = key.replace('cf_', '');
+				newWorkItem.customFields[actualKey] = value as string | number | boolean | null;
+			}
+		}
+
+		await addWorkItem(newWorkItem);
+
+		const redirectUrl = newWorkItem.parentId
+			? `/work-items/${newWorkItem.parentId}`
+			: `/work-items?clientId=${newWorkItem.clientId}`;
 
 		redirect(303, redirectUrl);
 	}
