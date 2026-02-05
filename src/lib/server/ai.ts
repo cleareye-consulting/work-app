@@ -87,14 +87,68 @@ async function geminiSummary(content: string) {
 			},
 		});
 
-		if (!response.text) {
+		const responseText = response.text;
+		if (!responseText) {
 			console.error('No text found in the response.', response);
-			return ''
+			return '';
 		}
-		return response.text.trim();
-
+		return responseText.trim();
 	} catch (error) {
 		console.error('Error generating summary with Gemini:', error);
 		throw new Error('Failed to generate AI summary.');
+	}
+}
+
+export async function generateClientSummary(
+	lastSummary: string | null,
+	events: any[],
+	documents: any[]
+) {
+	const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+	const eventsText =
+		events.length > 0
+			? events.map((e) => `- ${e.createdAt.toLocaleString()}: ${e.summaryOfChanges}`).join('\n')
+			: 'No recent events.';
+
+	const documentsText =
+		documents.length > 0
+			? documents
+					.map((d) => `- ${d.name} (${d.type}): ${d.summary || d.content.substring(0, 500)}`)
+					.join('\n')
+			: 'No recent documents.';
+
+	const prompt = `
+        You are a professional assistant drafting a weekly client summary.
+        
+        PREVIOUS SUMMARY:
+        ${lastSummary || 'No previous summary available.'}
+        
+        RECENT WORK ITEM EVENTS:
+        ${eventsText}
+        
+        RECENT WORK ITEM DOCUMENTS:
+        ${documentsText}
+        
+        Based on the previous summary and the recent events and documents, draft a new client summary.
+        The summary should be professional, concise, and highlight key progress made.
+        Format the output in Markdown.
+    `;
+
+	try {
+		const response = await ai.models.generateContent({
+			model: 'gemini-2.5-flash',
+			contents: [{ role: 'user', parts: [{ text: prompt }] }],
+			config: {
+				temperature: 0.7,
+				maxOutputTokens: 2048
+			}
+		});
+
+		const responseText = response.text;
+		return responseText ? responseText.trim() : '';
+	} catch (error) {
+		console.error('Error generating client summary with Gemini:', error);
+		throw new Error('Failed to generate AI client summary.');
 	}
 }
