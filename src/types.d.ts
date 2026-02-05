@@ -3,6 +3,7 @@ export interface Client {
 	name: string;
 	isActive: boolean;
 	documents?: ClientDocument[];
+	summaries?: ClientSummary[];
 }
 
 export interface WorkItem {
@@ -34,4 +35,16 @@ export interface ClientDocument extends Document {
 export interface WorkItemDocument extends Document {
 	workItemId: number;
 	summary?: string;
+}
+
+export interface WorkItemChangeEvent {
+	workItemId: number;
+	createdAt: Date;
+	summaryOfChanges: string;
+}
+
+export interface ClientSummary {
+	clientId: number;
+	content: string;
+	createdAt: string;
 }
