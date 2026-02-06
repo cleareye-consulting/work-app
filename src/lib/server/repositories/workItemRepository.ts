@@ -272,15 +272,12 @@ export async function getWorkItemById(id: number): Promise<WorkItem> {
 		description: getResponse.Item.description,
 		customFields: getResponse.Item.customFields || {}
 	};
-	workItem.documents = await getWorkItemDocuments(id, workItem.clientId);
+	workItem.documents = await getWorkItemDocuments(id);
 	workItem.children = await getChildWorkItems(workItem, null);
 	return workItem;
 }
 
-export async function getWorkItemDocuments(
-	workItemId: number,
-	clientId: number
-): Promise<WorkItemDocument[]> {
+export async function getWorkItemDocuments( workItemId: number ): Promise<WorkItemDocument[]> {
 	const queryResult = await dynamoDBDocumentClient.send(
 		new QueryCommand({
 			TableName: TABLE_NAME,
@@ -305,7 +302,6 @@ export async function getWorkItemDocuments(
 			type: item.type,
 			content: item.content,
 			workItemId: workItemId,
-			clientId: clientId,
 			summary: item.summary ?? null
 		};
 	});
