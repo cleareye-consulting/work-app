@@ -1,12 +1,14 @@
 import type { WorkItemDocument } from '../../../../../types';
 import { redirect } from '@sveltejs/kit';
-import { addWorkItemDocument } from '$lib/server/repositories/workItemRepository';
+import { addWorkItemDocument, getWorkItemById } from '$lib/server/repositories/workItemRepository';
 import { generateDocumentSummary } from '$lib/server/ai';
 
 export async function load({params}) {
 	const workItemId = params.id
+	const workItem = await getWorkItemById(+workItemId)
 	return {
 		workItemId: workItemId,
+		clientId: workItem.clientId
 	}
 }
 

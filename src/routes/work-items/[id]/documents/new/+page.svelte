@@ -4,7 +4,7 @@
 	import Button from '../../../../../components/Button.svelte';
 	import Input from '../../../../../components/Input.svelte';
 	let name = $state(new Date().toISOString(	))
-	let {data} = $props() as {data: {workItemId: string}}
+	let {data} = $props() as {data: {workItemId: string, clientId: number}}
 	let content = $state('')
 </script>
 

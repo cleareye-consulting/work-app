@@ -1,4 +1,4 @@
-import type { Client, ClientDocument } from '../../../types';
+import type { Client, ClientDocument, ClientSummary } from '../../../types';
 import {
 	dynamoDBDocumentClient,
 	extractId,
@@ -78,6 +78,24 @@ export async function addClientDocument(item: ClientDocument): Promise<number> {
 	return newId;
 }
 
+export async function addClientSummary(clientId: string, content: string) {
+	const now = new Date().toISOString();
+	const item = {
+		PK: `CLIENT#${clientId}`,
+		SK: `SUM#${now}`,
+		content,
+		itemType: 'SUMMARY',
+		createdAt: now
+	};
+
+	await dynamoDBDocumentClient.send(
+		new PutCommand({
+			TableName: TABLE_NAME,
+			Item: item
+		})
+	);
+}
+
 export async function updateClient(item: Client) {
 	invalidateCache();
 	const updateExpression = item.isActive
@@ -154,7 +172,29 @@ export async function getClientById(id: number): Promise<Client> {
 		isActive: getResult.Item.isActive
 	};
 	client.documents = await getClientDocuments(id);
+	client.summaries = await getClientSummaries(id);
 	return client;
+}
+
+export async function getClientSummaries(clientId: number): Promise<ClientSummary[]> {
+	const queryResult = await dynamoDBDocumentClient.send(
+		new QueryCommand({
+			TableName: TABLE_NAME,
+			KeyConditionExpression: 'PK = :parentKey AND begins_with(SK, :summaryPrefix)',
+			ExpressionAttributeValues: {
+				':parentKey': `CLIENT#${clientId}`,
+				':summaryPrefix': 'SUM#'
+			},
+			ScanIndexForward: false
+		})
+	);
+	return (queryResult.Items ?? []).map((item) => {
+		return {
+			clientId: clientId,
+			content: item.content,
+			createdAt: item.createdAt
+		};
+	});
 }
 
 export async function getClients(): Promise<Client[]> {
@@ -213,6 +253,45 @@ export async function getClientDocuments(clientId: number): Promise<ClientDocume
 			clientId: clientId
 		};
 	});
+}
+
+export async function updateClientSummary(summary: ClientSummary) {
+	await dynamoDBDocumentClient.send(
+		new UpdateCommand({
+			TableName: TABLE_NAME,
+			Key: {
+				PK: `CLIENT#${summary.clientId}`,
+				SK: `SUM#${summary.createdAt}`
+			},
+			UpdateExpression: 'set content = :content',
+			ExpressionAttributeValues: {
+				':content': summary.content
+			}
+		})
+	);
+}
+
+export async function getClientSummaryById(
+	clientId: number,
+	createdAt: string
+): Promise<ClientSummary> {
+	const getResult = await dynamoDBDocumentClient.send(
+		new GetCommand({
+			TableName: TABLE_NAME,
+			Key: {
+				PK: `CLIENT#${clientId}`,
+				SK: `SUM#${createdAt}`
+			}
+		})
+	);
+	if (!getResult.Item) {
+		throw new Error('Client summary not found');
+	}
+	return {
+		clientId: clientId,
+		content: getResult.Item.content,
+		createdAt: getResult.Item.createdAt
+	};
 }
 
 export async function getClientDocumentById(

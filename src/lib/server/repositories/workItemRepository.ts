@@ -1,4 +1,4 @@
-import type { WorkItemDocument, WorkItem } from '../../../types';
+import type { WorkItemDocument, WorkItem, WorkItemChangeEvent } from '../../../types';
 import {
 	dynamoDBDocumentClient,
 	extractId,
@@ -11,6 +11,8 @@ import {
 	GetCommand,
 	PutCommand,
 	QueryCommand,
+	TransactWriteCommand,
+	type TransactWriteCommandInput,
 	UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import { getActiveStatuses } from '../utils';
@@ -46,7 +48,7 @@ export async function addWorkItem(item: WorkItem): Promise<number> {
 			TableName: TABLE_NAME,
 			Item: metaDataItem
 		})
-	)
+	);
 	return newId;
 }
 
@@ -72,37 +74,65 @@ export async function addWorkItemDocument(item: WorkItemDocument): Promise<numbe
 
 export async function updateWorkItem(item: WorkItem) {
 	const pk = `WI#${item.id}`;
+	const oldItem = await getWorkItemById(item.id!);
 	const now = new Date().toISOString();
-	await dynamoDBDocumentClient.send(
-		new UpdateCommand({
-			TableName: TABLE_NAME,
-			Key: { PK: pk, SK: 'METADATA' },
-			UpdateExpression: `SET 
-      #n = :n, 
-      #t = :t, 
-      #s = :s, 
-      searchKey = :sk,
-      parentId = :pid,
-      description = :desc, 
-      customFields = :cf,
-      updatedAt = :updatedAt`,
-			ExpressionAttributeNames: {
-				'#n': 'name',
-				'#t': 'type',
-				'#s': 'status'
-			},
-			ExpressionAttributeValues: {
-				':n': item.name,
-				':t': item.type,
-				':s': item.status,
-				':sk': getSearchKey(item, pk),
-				':pid': item.parentId ?? TOP_LEVEL_PARENT_ID,
-				':desc': item.description || null,
-				':cf': item.customFields || {},
-				':updatedAt': now
+	const changes = [];
+
+	if (item.status !== oldItem.status) {
+		changes.push(`Status: ${oldItem.status} → ${item.status}`);
+	}
+
+	const oldFields = oldItem.customFields || {};
+	const fields = item.customFields || {};
+
+	for (const key in fields) {
+		if (fields[key] !== oldFields[key]) {
+			changes.push(`${key}: ${oldFields[key] ?? 'None'} → ${fields[key]}`);
+		}
+	}
+
+	const transactItems: NonNullable<TransactWriteCommandInput['TransactItems']> = [
+		{
+			Update: {
+				TableName: TABLE_NAME,
+				Key: { PK: pk, SK: 'METADATA' },
+				UpdateExpression: `SET 
+          #n = :n, #t = :t, #s = :s, 
+          searchKey = :sk, parentId = :pid, 
+          description = :desc, customFields = :cf, 
+          updatedAt = :updatedAt`,
+				ExpressionAttributeNames: { '#n': 'name', '#t': 'type', '#s': 'status' },
+				ExpressionAttributeValues: {
+					':n': item.name,
+					':t': item.type,
+					':s': item.status,
+					':sk': getSearchKey(item, pk),
+					':pid': item.parentId ?? TOP_LEVEL_PARENT_ID,
+					':desc': item.description || null,
+					':cf': item.customFields || {},
+					':updatedAt': now
+				}
 			}
-		})
-	);
+		}
+	];
+
+	if (changes.length > 0) {
+		transactItems.push({
+			Put: {
+				TableName: TABLE_NAME,
+				Item: {
+					PK: pk,
+					SK: `EVT#${now}`,
+					itemType: 'EVENT',
+					clientId: item.clientId,
+					content: changes.join(' | '),
+					createdAt: now
+				}
+			}
+		});
+	}
+
+	await dynamoDBDocumentClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
 }
 
 export async function updateWorkItemDocument(item: WorkItemDocument) {
@@ -119,7 +149,7 @@ export async function updateWorkItemDocument(item: WorkItemDocument) {
 				'#name': 'name',
 				'#type': 'type',
 				'#content': 'content',
-				'#updatedAt': 'updatedAt',
+				'#updatedAt': 'updatedAt'
 			},
 			ExpressionAttributeValues: {
 				':name': item.name,
@@ -240,14 +270,14 @@ export async function getWorkItemById(id: number): Promise<WorkItem> {
 		clientId: getResponse.Item.clientId,
 		clientName: getResponse.Item.clientName,
 		description: getResponse.Item.description,
-		customFields: getResponse.Item.customFields || {},
+		customFields: getResponse.Item.customFields || {}
 	};
 	workItem.documents = await getWorkItemDocuments(id);
 	workItem.children = await getChildWorkItems(workItem, null);
 	return workItem;
 }
 
-export async function getWorkItemDocuments(workItemId: number): Promise<WorkItemDocument[]> {
+export async function getWorkItemDocuments( workItemId: number ): Promise<WorkItemDocument[]> {
 	const queryResult = await dynamoDBDocumentClient.send(
 		new QueryCommand({
 			TableName: TABLE_NAME,
@@ -272,7 +302,7 @@ export async function getWorkItemDocuments(workItemId: number): Promise<WorkItem
 			type: item.type,
 			content: item.content,
 			workItemId: workItemId,
-			summary: item.summary ?? null,
+			summary: item.summary ?? null
 		};
 	});
 }
@@ -306,4 +336,30 @@ export async function getWorkItemDocumentById(
 		content: getResult.Item.content,
 		workItemId
 	};
+}
+
+export async function getEventsForRange(clientId: number, startDate: Date, endDate: Date): Promise<WorkItemChangeEvent[]> {
+	const params = {
+		TableName: TABLE_NAME,
+		IndexName: 'ItemTypeIndex',
+		KeyConditionExpression: 'itemType = :type AND createdAt BETWEEN :start AND :end',
+		ExpressionAttributeValues: {
+			':type': 'EVENT',
+			':start': startDate.toISOString(),
+			':end': endDate.toISOString()
+		}
+	};
+
+	const response = await dynamoDBDocumentClient.send(new QueryCommand(params));
+	const items = response.Items ?? [];
+
+	return (
+		items
+			.filter((item) => item.clientId === clientId)
+			.map((item) => ({
+				workItemId: extractId(item.PK, 'WI'),
+				createdAt: new Date(item.createdAt),
+				summaryOfChanges: item.content || ''
+			}))
+	);
 }
