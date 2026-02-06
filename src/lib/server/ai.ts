@@ -102,21 +102,46 @@ async function geminiSummary(content: string) {
 export async function generateClientSummary(
 	lastSummary: string | null,
 	events: any[],
-	documents: any[]
+	documents: any[],
+	workItems: any[]
 ) {
 	const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-	const eventsText =
-		events.length > 0
-			? events.map((e) => `- ${e.createdAt.toLocaleString()}: ${e.summaryOfChanges}`).join('\n')
-			: 'No recent events.';
+	const workItemMap = new Map(workItems.map((wi) => [wi.id, wi]));
 
-	const documentsText =
-		documents.length > 0
-			? documents
-					.map((d) => `- ${d.name} (${d.type}): ${d.summary || d.content.substring(0, 500)}`)
-					.join('\n')
-			: 'No recent documents.';
+	// Group events and documents by work item to preserve context
+	const workItemContexts = workItems.map((wi) => {
+		const wiEvents = events.filter((e) => e.workItemId === wi.id);
+		const wiDocuments = documents.filter((d) => d.workItemId === wi.id);
+
+		if (wiEvents.length === 0 && wiDocuments.length === 0) return null;
+
+		const parentInfo = wi.parentId && wi.parentId !== 0 
+			? ` (Parent: ${wi.parentName || 'Work Item #' + wi.parentId})` 
+			: ' (Top-level Project)';
+
+		let context = `### Work Item: ${wi.name} [Type: ${wi.type}]${parentInfo}\n`;
+		context += `Status: ${wi.status}\n`;
+		if (wi.description) context += `Description: ${wi.description}\n`;
+
+		if (wiEvents.length > 0) {
+			context += `Recent Changes:\n`;
+			wiEvents.forEach((e) => {
+				context += `- ${e.createdAt.toLocaleString()}: ${e.summaryOfChanges}\n`;
+			});
+		}
+
+		if (wiDocuments.length > 0) {
+			context += `Related Documents/Notes:\n`;
+			wiDocuments.forEach((d) => {
+				context += `- ${d.name} (${d.type}): ${d.summary || d.content.substring(0, 1000)}\n`;
+			});
+		}
+
+		return context;
+	}).filter(Boolean);
+
+	const contextText = workItemContexts.join('\n---\n');
 
 	const prompt = `
         You are a professional assistant drafting a weekly client summary.
@@ -124,20 +149,26 @@ export async function generateClientSummary(
         PREVIOUS SUMMARY:
         ${lastSummary || 'No previous summary available.'}
         
-        RECENT WORK ITEM EVENTS:
-        ${eventsText}
+        RECENT ACTIVITY (Organized by Work Item):
+        ${contextText || 'No recent activity recorded.'}
         
-        RECENT WORK ITEM DOCUMENTS:
-        ${documentsText}
+        Based on the previous summary and the recent activity (events and documents) organized by work item, draft a new client summary.
         
-        Based on the previous summary and the recent events and documents, draft a new client summary.
-        The summary should be professional, concise, and highlight key progress made.
-        Format the output in Markdown.
+        GUIDELINES:
+        - The audience is technical enough to understand details but interested in business outcomes.
+        - Goal: Communicate progress on business objectives and technical milestones.
+        - Group the summary by project or major feature. Do NOT blend all work together into a single chronological narrative.
+        - Use the work item names and types to provide context.
+        - Pay close attention to the parent/child relationships. A child item's progress should be discussed in the context of its parent project/feature when appropriate.
+        - Note any blockers explicitly.
+        - This is a RETROSPECTIVE summary. Do not speculate on future work.
+        - Tone: Reference the provided documents/notes for tone, but prefer simple and clear communication over "punchy" or overly corporate language.
+        - Output Format: Markdown. Use headers to separate distinct projects or focus areas.
     `;
 
 	try {
 		const response = await ai.models.generateContent({
-			model: 'gemini-2.5-flash',
+			model: 'gemini-3-flash-preview',
 			contents: [{ role: 'user', parts: [{ text: prompt }] }],
 			config: {
 				temperature: 0.7,

@@ -54,21 +54,42 @@ export async function addWorkItem(item: WorkItem): Promise<number> {
 
 export async function addWorkItemDocument(item: WorkItemDocument): Promise<number> {
 	const newId = await getNextSequenceNumber('DOC-WI');
-	await dynamoDBDocumentClient.send(
-		new PutCommand({
-			TableName: TABLE_NAME,
-			Item: {
-				PK: `WI#${item.workItemId}`,
-				SK: `DOC#${newId}`,
-				name: item.name,
-				type: item.type,
-				content: item.content,
-				summary: item.summary ?? null,
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString()
+	const workItem = await getWorkItemById(item.workItemId);
+	const now = new Date().toISOString();
+
+	const transactItems: NonNullable<TransactWriteCommandInput['TransactItems']> = [
+		{
+			Put: {
+				TableName: TABLE_NAME,
+				Item: {
+					PK: `WI#${item.workItemId}`,
+					SK: `DOC#${newId}`,
+					name: item.name,
+					type: item.type,
+					content: item.content,
+					summary: item.summary ?? null,
+					createdAt: now,
+					updatedAt: now
+				}
 			}
-		})
-	);
+		},
+		{
+			Put: {
+				TableName: TABLE_NAME,
+				Item: {
+					PK: `WI#${item.workItemId}`,
+					SK: `EVT#${now}`,
+					itemType: 'EVENT',
+					clientId: workItem.clientId,
+					content: `Document added: ${item.name}`,
+					createdAt: now
+				}
+			}
+		}
+	];
+
+	await dynamoDBDocumentClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+
 	return newId;
 }
 
@@ -136,30 +157,50 @@ export async function updateWorkItem(item: WorkItem) {
 }
 
 export async function updateWorkItemDocument(item: WorkItemDocument) {
-	await dynamoDBDocumentClient.send(
-		new UpdateCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `WI#${item.workItemId}`,
-				SK: `DOC#${item.id}`
-			},
-			UpdateExpression:
-				'set #name = :name, #type = :type, #content = :content, #updatedAt = :updatedAt, summary = :summary',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#content': 'content',
-				'#updatedAt': 'updatedAt'
-			},
-			ExpressionAttributeValues: {
-				':name': item.name,
-				':type': item.type,
-				':content': item.content,
-				':updatedAt': new Date().toISOString(),
-				':summary': item.summary ?? null
+	const workItem = await getWorkItemById(item.workItemId);
+	const now = new Date().toISOString();
+
+	const transactItems: NonNullable<TransactWriteCommandInput['TransactItems']> = [
+		{
+			Update: {
+				TableName: TABLE_NAME,
+				Key: {
+					PK: `WI#${item.workItemId}`,
+					SK: `DOC#${item.id}`
+				},
+				UpdateExpression:
+					'set #name = :name, #type = :type, #content = :content, #updatedAt = :updatedAt, summary = :summary',
+				ExpressionAttributeNames: {
+					'#name': 'name',
+					'#type': 'type',
+					'#content': 'content',
+					'#updatedAt': 'updatedAt'
+				},
+				ExpressionAttributeValues: {
+					':name': item.name,
+					':type': item.type,
+					':content': item.content,
+					':updatedAt': now,
+					':summary': item.summary ?? null
+				}
 			}
-		})
-	);
+		},
+		{
+			Put: {
+				TableName: TABLE_NAME,
+				Item: {
+					PK: `WI#${item.workItemId}`,
+					SK: `EVT#${now}`,
+					itemType: 'EVENT',
+					clientId: workItem.clientId,
+					content: `Document updated: ${item.name}`,
+					createdAt: now
+				}
+			}
+		}
+	];
+
+	await dynamoDBDocumentClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
 }
 
 export async function getTopLevelWorkItemsForClient(

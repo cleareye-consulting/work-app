@@ -1,5 +1,5 @@
 import { addClientSummary, getClientSummaries } from '$lib/server/repositories/clientRepository';
-import { getEventsForRange, getWorkItemDocuments } from '$lib/server/repositories/workItemRepository';
+import { getEventsForRange, getWorkItemDocuments, getWorkItemById } from '$lib/server/repositories/workItemRepository';
 import { generateClientSummary } from '$lib/server/ai';
 import { redirect } from '@sveltejs/kit';
 
@@ -25,19 +25,23 @@ export const actions = {
 		// Get unique work item IDs from events
 		const workItemIds = [...new Set(events.map(e => e.workItemId))];
 		
+		// Fetch full work item details to get hierarchy and names
+		const workItems = await Promise.all(
+			workItemIds.map(id => getWorkItemById(id))
+		);
+
+		const workItemMap = new Map(workItems.map(wi => [wi.id, wi]));
+		
 		// Fetch documents for each work item
-		// Note: getWorkItemDocuments already filters by workItemId. 
-		// Since we don't have a date filter on getWorkItemDocuments, 
-		// we might get all documents for these work items.
-		// However, the instructions say "retrieve the documents for those work items individually".
 		const documents = (await Promise.all(
-			workItemIds.map(id => getWorkItemDocuments(id, clientId))
+			workItemIds.map(id => getWorkItemDocuments(id))
 		)).flat();
 
 		const generatedContent = await generateClientSummary(
 			lastSummary?.content || null,
 			events,
-			documents
+			documents,
+			workItems
 		);
 
 		return {
