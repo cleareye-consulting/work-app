@@ -52,6 +52,7 @@
 		]
 	},
 	"dependencies": {
+		"@auth/sveltekit": "^1.11.1",
 		"@aws-sdk/client-dynamodb": "^3.922.0",
 		"@aws-sdk/lib-dynamodb": "^3.922.0",
 		"@google/genai": "^1.28.0",
