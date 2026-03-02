@@ -4,9 +4,6 @@ import Checkbox from '../../../components/Checkbox.svelte';
 import Button from '../../../components/Button.svelte';
 import A from '../../../components/A.svelte';
 import Input from '../../../components/Input.svelte';
-import Table from '../../../components/Table.svelte';
-import TH from '../../../components/TH.svelte';
-import TD from '../../../components/TD.svelte';
 import { onMount } from 'svelte';
 let {data} = $props()
 
@@ -65,53 +62,62 @@ function handlePeriodChange() {
 </div>
 
 <hr class="my-4" />
-<div class="flex items-baseline justify-between mb-4">
-	<h3 class="text-2xl">
-		{data.period === 'last-month' ? 'Last' : 'Current'} Month Time Summary
-	</h3>
-	<form bind:this={form} method="GET" class="flex gap-4 items-center">
-		<label class="flex items-center gap-2 cursor-pointer">
-			<input 
-				type="radio" 
-				name="period" 
-				value="this-month" 
-				checked={data.period !== 'last-month'} 
-				onchange={handlePeriodChange}
-			/>
-			This Month
-		</label>
-		<label class="flex items-center gap-2 cursor-pointer">
-			<input 
-				type="radio" 
-				name="period" 
-				value="last-month" 
-				checked={data.period === 'last-month'} 
-				onchange={handlePeriodChange}
-			/>
-			Last Month
-		</label>
-	</form>
+<div class="max-w-4xl">
+	<div class="flex items-baseline justify-between mb-4">
+		<h3 class="text-2xl">
+			Time Tracking
+		</h3>
+		<form bind:this={form} method="GET" class="flex gap-4 items-center">
+			<label class="flex items-center gap-2 cursor-pointer">
+				<input 
+					type="radio" 
+					name="period" 
+					value="this-month" 
+					checked={data.period !== 'last-month'} 
+					onchange={handlePeriodChange}
+				/>
+				This Month
+			</label>
+			<label class="flex items-center gap-2 cursor-pointer">
+				<input 
+					type="radio" 
+					name="period" 
+					value="last-month" 
+					checked={data.period === 'last-month'} 
+					onchange={handlePeriodChange}
+				/>
+				Last Month
+			</label>
+		</form>
+	</div>
+
+	{#if data.monthlyTimeSummary.length > 0}
+		<div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
+			<div class="grid grid-cols-4 bg-gray-50 border-b border-gray-300 font-bold py-2 px-4">
+				<div class="col-span-3">Work Item</div>
+				<div class="text-right">Hours</div>
+			</div>
+			<div class="divide-y divide-gray-200">
+				{#each data.monthlyTimeSummary as node (node.workItemId)}
+					{@render timeRow(node, 0)}
+				{/each}
+			</div>
+		</div>
+	{:else}
+		<p class="text-gray-500 italic">No time entries for {data.period === 'last-month' ? 'last' : 'this'} month.</p>
+	{/if}
 </div>
 
-{#if data.monthlyTimeSummary.length > 0}
-	<Table class="w-full">
-		<thead>
-			<tr>
-				<TH class="w-1/2">Work Item</TH>
-				<TH class="w-1/2">Hours</TH>
-			</tr>
-		</thead>
-		<tbody>
-			{#each data.monthlyTimeSummary as entry (entry.workItemId)}
-				<tr>
-					<TD><A href="/work-items/{entry.workItemId}">WI#{entry.workItemId}</A></TD>
-					<TD>{entry.hours}</TD>
-				</tr>
-			{/each}
-		</tbody>
-	</Table>
-{:else}
-	<p class="text-gray-500 italic">No time entries for {data.period === 'last-month' ? 'last' : 'this'} month.</p>
-{/if}
+{#snippet timeRow(node, depth)}
+	<div class="grid grid-cols-4 py-2 px-4 hover:bg-gray-50 items-center">
+		<div class="col-span-3 truncate" style="padding-left: {depth * 1.5}rem">
+			<A href="/work-items/{node.workItemId}">{node.workItemName}</A>
+		</div>
+		<div class="text-right font-mono">{node.totalHours.toFixed(2)}</div>
+	</div>
+	{#each node.children.sort((a, b) => a.workItemId - b.workItemId) as child (child.workItemId)}
+		{@render timeRow(child, depth + 1)}
+	{/each}
+{/snippet}
 
 <div class="pb-12"></div>
