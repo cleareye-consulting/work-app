@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import ContentHeader from '../../../components/ContentHeader.svelte';
 	import A from '../../../components/A.svelte';
 	import Select from '../../../components/Select.svelte';
@@ -26,7 +27,7 @@
 
 <ContentHeader>{data?.workItem?.type}</ContentHeader>
 
-<form method="post" action="?/update">
+<form method="post" action="?/update" use:enhance>
 	<input type="hidden" name="id" value={data.workItem?.id} />
 	<input type="hidden" name="clientId" value={data.workItem?.clientId} />
 	{#if data.featureFlags.retypeWorkItems}
@@ -92,13 +93,13 @@
 
 <div class="mt-4">
 	{#if isTrackingThisItem}
-		<form method="post" action="?/stopTracking" class="inline">
+		<form method="post" action="?/stopTracking" class="inline" use:enhance>
 			<input type="hidden" name="id" value={data.workItem.id} />
 			<input type="hidden" name="timeEntryId" value={data.timeTrackingStatus.activeTimeEntryId} />
 			<Button class="bg-red-600 hover:bg-red-700">Stop Tracking</Button>
 		</form>
 	{:else}
-		<form method="post" action="?/startTracking" class="inline">
+		<form method="post" action="?/startTracking" class="inline" use:enhance>
 			<input type="hidden" name="id" value={data.workItem.id} />
 			<input type="hidden" name="clientId" value={data.workItem.clientId} />
 			<Button class="bg-green-600 hover:bg-green-700">Start Tracking</Button>

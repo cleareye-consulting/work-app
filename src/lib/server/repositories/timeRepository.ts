@@ -8,9 +8,37 @@ import {
 	PutCommand,
 	UpdateCommand,
 	TransactWriteCommand,
-	type TransactWriteCommandInput
+	type TransactWriteCommandInput,
+	QueryCommand
 } from '@aws-sdk/lib-dynamodb';
 import type { TimeEntry, TimeTrackingStatus } from '../../../types';
+
+export async function getTimeEntriesByClientAndRange(
+	clientId: number,
+	startDate: string,
+	endDate: string
+): Promise<TimeEntry[]> {
+	const response = await dynamoDBDocumentClient.send(
+		new QueryCommand({
+			TableName: TABLE_NAME,
+			IndexName: 'time-clientId-startTime',
+			KeyConditionExpression: 'clientId = :clientId AND startTime BETWEEN :startDate AND :endDate',
+			ExpressionAttributeValues: {
+				':clientId': clientId,
+				':startDate': startDate,
+				':endDate': endDate
+			}
+		})
+	);
+
+	return (response.Items ?? []).map((item) => ({
+		id: item.PK.startsWith('TIME#') ? parseInt(item.PK.split('#')[1]) : undefined,
+		workItemId: item.workItemId,
+		clientId: item.clientId,
+		startTime: item.startTime,
+		endTime: item.endTime
+	}));
+}
 
 export async function getTimeTrackingStatus(): Promise<TimeTrackingStatus> {
 	const response = await dynamoDBDocumentClient.send(
