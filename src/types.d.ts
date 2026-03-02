@@ -48,3 +48,17 @@ export interface ClientSummary {
 	content: string;
 	createdAt: string;
 }
+
+export interface TimeEntry {
+	id?: number;
+	workItemId: number;
+	clientId: number;
+	startTime: string;
+	endTime?: string;
+}
+
+export interface TimeTrackingStatus {
+	activeTimeEntryId?: number;
+	activeWorkItemId?: number;
+	activeClientId?: number;
+}

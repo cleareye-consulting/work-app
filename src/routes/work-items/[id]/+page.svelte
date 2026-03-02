@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import ContentHeader from '../../../components/ContentHeader.svelte';
 	import A from '../../../components/A.svelte';
 	import Select from '../../../components/Select.svelte';
@@ -15,6 +16,9 @@
 	const documentsSorted = $derived(
 		data.workItem.documents?.sort((a, b) => (a.name < b.name ? 1 : -1)) ?? []
 	);
+	const isTrackingThisItem = $derived(
+		data.timeTrackingStatus.activeWorkItemId === data.workItem.id
+	);
 	export function camelCaseToTitleCaseWithSpaces(input: string) {
 		const step1 = input.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
 		return step1.charAt(0).toUpperCase() + step1.slice(1);
@@ -23,7 +27,7 @@
 
 <ContentHeader>{data?.workItem?.type}</ContentHeader>
 
-<form method="post">
+<form method="post" action="?/update" use:enhance>
 	<input type="hidden" name="id" value={data.workItem?.id} />
 	<input type="hidden" name="clientId" value={data.workItem?.clientId} />
 	{#if data.featureFlags.retypeWorkItems}
@@ -86,6 +90,22 @@
 		>
 	</div>
 </form>
+
+<div class="mt-4">
+	{#if isTrackingThisItem}
+		<form method="post" action="?/stopTracking" class="inline" use:enhance>
+			<input type="hidden" name="id" value={data.workItem.id} />
+			<input type="hidden" name="timeEntryId" value={data.timeTrackingStatus.activeTimeEntryId} />
+			<Button class="bg-red-600 hover:bg-red-700">Stop Tracking</Button>
+		</form>
+	{:else}
+		<form method="post" action="?/startTracking" class="inline" use:enhance>
+			<input type="hidden" name="id" value={data.workItem.id} />
+			<input type="hidden" name="clientId" value={data.workItem.clientId} />
+			<Button class="bg-green-600 hover:bg-green-700">Start Tracking</Button>
+		</form>
+	{/if}
+</div>
 <hr class="my-4" />
 <h3 class="text-2xl">Children</h3>
 {#if data.workItem?.children?.length !== 0}
