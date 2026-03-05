@@ -50,6 +50,7 @@ export async function addClient(item: Client): Promise<number> {
 				isActiveClient: 'Y', //used for indexing
 				name: item.name,
 				isActive: true,
+				billingStartDayOfMonth: item.billingStartDayOfMonth,
 				createdAt: new Date().toISOString(),
 				updatedAt: new Date().toISOString()
 			}
@@ -99,8 +100,8 @@ export async function addClientSummary(clientId: string, content: string) {
 export async function updateClient(item: Client) {
 	invalidateCache();
 	const updateExpression = item.isActive
-		? 'set #name = :name, #isActive = :isActive, #updatedAt = :updatedAt'
-		: 'set #name = :name, #isActive = :isActive, #updatedAt = :updatedAt REMOVE #isActiveClient';
+		? 'set #name = :name, #isActive = :isActive, #billingStartDayOfMonth = :billingStartDayOfMonth, #updatedAt = :updatedAt, isActiveClient = :isActiveClient'
+		: 'set #name = :name, #isActive = :isActive, #billingStartDayOfMonth = :billingStartDayOfMonth, #updatedAt = :updatedAt REMOVE isActiveClient';
 
 	await dynamoDBDocumentClient.send(
 		new UpdateCommand({
@@ -113,12 +114,15 @@ export async function updateClient(item: Client) {
 			ExpressionAttributeNames: {
 				'#name': 'name',
 				'#isActive': 'isActive',
+				'#billingStartDayOfMonth': 'billingStartDayOfMonth',
 				'#updatedAt': 'updatedAt'
 			},
 			ExpressionAttributeValues: {
 				':name': item.name,
 				':isActive': item.isActive,
-				':updatedAt': new Date().toISOString()
+				':billingStartDayOfMonth': item.billingStartDayOfMonth,
+				':updatedAt': new Date().toISOString(),
+				...(item.isActive ? { ':isActiveClient': 'Y' } : {})
 			}
 		})
 	);
@@ -159,7 +163,7 @@ export async function getClientById(id: number): Promise<Client> {
 				PK: `CLIENT#${id}`,
 				SK: 'METADATA'
 			},
-			ProjectionExpression: 'PK, #name, isActive',
+			ProjectionExpression: 'PK, #name, isActive, billingStartDayOfMonth',
 			ExpressionAttributeNames: { '#name': 'name' }
 		})
 	);
@@ -169,7 +173,8 @@ export async function getClientById(id: number): Promise<Client> {
 	const client: Client = {
 		id: extractId(getResult.Item.PK, 'CLIENT'),
 		name: getResult.Item.name,
-		isActive: getResult.Item.isActive
+		isActive: getResult.Item.isActive,
+		billingStartDayOfMonth: getResult.Item.billingStartDayOfMonth
 	};
 	client.documents = await getClientDocuments(id);
 	client.summaries = await getClientSummaries(id);
@@ -211,7 +216,7 @@ export async function getClients(): Promise<Client[]> {
 				':isActiveClient': 'Y'
 			},
 			ScanIndexForward: true,
-			ProjectionExpression: 'PK, SK, #name, isActive',
+			ProjectionExpression: 'PK, SK, #name, isActive, billingStartDayOfMonth',
 			ExpressionAttributeNames: {
 				'#name': 'name'
 			}
@@ -220,7 +225,8 @@ export async function getClients(): Promise<Client[]> {
 	const results = (queryResult.Items || []).map((item) => ({
 		id: extractId(item.PK, 'CLIENT'),
 		name: item.name,
-		isActive: item.isActive
+		isActive: item.isActive,
+		billingStartDayOfMonth: item.billingStartDayOfMonth
 	}));
 	cacheClientList(results);
 	return results;

@@ -7,7 +7,8 @@ export const actions = {
 		const data = await request.formData()
 		const client: Client = {
 			name: data.get("name") as string,
-			isActive: true
+			isActive: true,
+			billingStartDayOfMonth: data.get("billingStartDayOfMonth") ? +(data.get("billingStartDayOfMonth") as string) : undefined
 		}
 		await addClient(client)
 		redirect(303, "/clients")

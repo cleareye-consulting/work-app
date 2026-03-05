@@ -10,15 +10,32 @@ export async function load({ params, url }) {
 
 	const period = url.searchParams.get('period') || 'this-month';
 	const now = new Date();
+	const billingStartDay = client.billingStartDayOfMonth || 1;
 	let startOfMonth: Date;
 	let endOfMonth: Date;
 
 	if (period === 'last-month') {
-		startOfMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-		endOfMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+		if (now.getDate() >= billingStartDay) {
+			// This month started on billingStartDay of this month.
+			// Last month started on billingStartDay of last month.
+			startOfMonth = new Date(now.getFullYear(), now.getMonth() - 1, billingStartDay);
+			endOfMonth = new Date(now.getFullYear(), now.getMonth(), billingStartDay - 1, 23, 59, 59, 999);
+		} else {
+			// This month started on billingStartDay of last month.
+			// Last month started on billingStartDay of 2 months ago.
+			startOfMonth = new Date(now.getFullYear(), now.getMonth() - 2, billingStartDay);
+			endOfMonth = new Date(now.getFullYear(), now.getMonth() - 1, billingStartDay - 1, 23, 59, 59, 999);
+		}
 	} else {
-		startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-		endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+		if (now.getDate() >= billingStartDay) {
+			// This month started on billingStartDay of this month.
+			startOfMonth = new Date(now.getFullYear(), now.getMonth(), billingStartDay);
+			endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, billingStartDay - 1, 23, 59, 59, 999);
+		} else {
+			// This month started on billingStartDay of last month.
+			startOfMonth = new Date(now.getFullYear(), now.getMonth() - 1, billingStartDay);
+			endOfMonth = new Date(now.getFullYear(), now.getMonth(), billingStartDay - 1, 23, 59, 59, 999);
+		}
 	}
 
 	const timeEntries = await getTimeEntriesByClientAndRange(
@@ -115,7 +132,9 @@ export async function load({ params, url }) {
 	return {
 		client,
 		monthlyTimeSummary,
-		period
+		period,
+		startDate: startOfMonth.toISOString(),
+		endDate: endOfMonth.toISOString()
 	};
 }
 
@@ -125,7 +144,8 @@ export const actions = {
 		const client: Client = {
 			id: +(data.get('id') as string),
 			name: data.get('name') as string,
-			isActive: data.has('isActive')
+			isActive: data.has('isActive'),
+			billingStartDayOfMonth: data.get('billingStartDayOfMonth') ? +(data.get('billingStartDayOfMonth') as string) : undefined
 		};
 		await updateClient(client);
 		redirect(303, '/clients');

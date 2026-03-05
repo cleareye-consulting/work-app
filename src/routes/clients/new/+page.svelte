@@ -11,6 +11,9 @@
 		<Input name="name" required>Name</Input>
 	</div>
 	<div>
+		<Input name="billingStartDayOfMonth" type="number" min="1" max="28">Billing Start Day (1-28)</Input>
+	</div>
+	<div>
 		<Button>Create</Button>
 	</div>
 </form>
