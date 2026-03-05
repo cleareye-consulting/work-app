@@ -26,6 +26,9 @@ function handlePeriodChange() {
 		<Input name="name" value={data.client.name}>Name</Input>
 	</div>
 	<div>
+		<Input name="billingStartDayOfMonth" type="number" min="1" max="28" value={data.client.billingStartDayOfMonth}>Billing Start Day (1-28)</Input>
+	</div>
+	<div>
 		<Checkbox id="isActive" name="isActive" checked={data.client.isActive}>Active</Checkbox>
 	</div>
 	<div>
@@ -64,9 +67,14 @@ function handlePeriodChange() {
 <hr class="my-4" />
 <div class="max-w-4xl">
 	<div class="flex items-baseline justify-between mb-4">
-		<h3 class="text-2xl">
-			Time Tracking
-		</h3>
+		<div class="flex items-baseline gap-4">
+			<h3 class="text-2xl">
+				Time Tracking
+			</h3>
+			<span class="text-gray-500 text-sm">
+				{new Date(data.startDate).toLocaleDateString()} - {new Date(data.endDate).toLocaleDateString()}
+			</span>
+		</div>
 		<form bind:this={form} method="GET" class="flex gap-4 items-center">
 			<label class="flex items-center gap-2 cursor-pointer">
 				<input 

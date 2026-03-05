@@ -2,6 +2,7 @@ export interface Client {
 	id?: number;
 	name: string;
 	isActive: boolean;
+	billingStartDayOfMonth?: number;
 	documents?: ClientDocument[];
 	summaries?: ClientSummary[];
 }
