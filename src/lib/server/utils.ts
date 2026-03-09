@@ -36,7 +36,7 @@ export const workItemTypes : workItemTypesList =  {
 	},
 	TASK: {
 		customFields: [],
-		parentTypes: ['_CLIENT_', 'STORY', 'BUG'],
+		parentTypes: ['_CLIENT_', 'STORY', 'BUG', 'NFR'],
 	},
 	NFR: {
 		customFields: [],
@@ -51,7 +51,7 @@ export const workItemTypes : workItemTypesList =  {
 	},
 	ISSUE: {
 		customFields: [],
-		parentTypes: ['_CLIENT_', 'PROJECT']
+		parentTypes: ['_CLIENT_', 'PROJECT', 'NFR']
 	}
 };
 
