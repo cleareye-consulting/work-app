@@ -57,6 +57,7 @@
 		"@aws-sdk/client-dynamodb": "^3.922.0",
 		"@aws-sdk/lib-dynamodb": "^3.922.0",
 		"@google/genai": "^1.28.0",
-		"marked": "^16.3.0"
+		"marked": "^16.3.0",
+		"pg": "^8.20.0"
 	}
 }

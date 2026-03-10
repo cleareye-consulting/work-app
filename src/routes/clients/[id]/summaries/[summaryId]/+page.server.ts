@@ -5,7 +5,7 @@ import type { ClientSummary } from '../../../../../types';
 export async function load({ params }) {
 	const clientId = params.id;
 	const summaryId = params.summaryId;
-	const summary = await getClientSummaryById(+clientId, summaryId);
+	const summary = await getClientSummaryById(+summaryId);
 	return {
 		summary
 	};
@@ -19,8 +19,9 @@ export const actions = {
 		const content = data.get('content') as string;
 
 		const summary: ClientSummary = {
+			id: +summaryId,
 			clientId: +clientId,
-			createdAt: summaryId,
+			createdAt: '', // Not needed for update
 			content
 		};
 
