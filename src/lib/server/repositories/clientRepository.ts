@@ -1,11 +1,5 @@
 import type { Client, ClientDocument, ClientSummary } from '../../../types';
-import {
-	dynamoDBDocumentClient,
-	extractId,
-	getNextSequenceNumber,
-	TABLE_NAME
-} from '$lib/server/db';
-import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { query } from '$lib/server/db';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -40,141 +34,60 @@ export async function getClientName(id: number): Promise<string> {
 
 export async function addClient(item: Client): Promise<number> {
 	invalidateCache();
-	const newId = await getNextSequenceNumber('CLIENT');
-	await dynamoDBDocumentClient.send(
-		new PutCommand({
-			TableName: TABLE_NAME,
-			Item: {
-				PK: `CLIENT#${newId}`,
-				SK: 'METADATA',
-				isActiveClient: 'Y', //used for indexing
-				name: item.name,
-				isActive: true,
-				billingStartDayOfMonth: item.billingStartDayOfMonth,
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString()
-			}
-		})
+	const res = await query<{ id: number }>(
+		'INSERT INTO clients (name, billing_start_day_of_month, is_active) VALUES ($1, $2, $3) RETURNING id',
+		[item.name, item.billingStartDayOfMonth, item.isActive]
 	);
-	return newId;
+	return res.rows[0].id;
 }
 
 export async function addClientDocument(item: ClientDocument): Promise<number> {
 	invalidateCache();
-	const newId = await getNextSequenceNumber('DOC-CLIENT');
-	await dynamoDBDocumentClient.send(
-		new PutCommand({
-			TableName: TABLE_NAME,
-			Item: {
-				PK: `CLIENT#${item.clientId}`,
-				SK: `DOC#${newId}`,
-				name: item.name,
-				type: item.type,
-				content: item.content,
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString()
-			}
-		})
+	const res = await query<{ id: number }>(
+		'INSERT INTO client_documents (client_id, name, content_type, content, summary) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+		[item.clientId, item.name, item.type, item.content, '']
 	);
-	return newId;
+	return res.rows[0].id;
 }
 
-export async function addClientSummary(clientId: string, content: string) {
-	const now = new Date().toISOString();
-	const item = {
-		PK: `CLIENT#${clientId}`,
-		SK: `SUM#${now}`,
-		content,
-		itemType: 'SUMMARY',
-		createdAt: now
-	};
-
-	await dynamoDBDocumentClient.send(
-		new PutCommand({
-			TableName: TABLE_NAME,
-			Item: item
-		})
+export async function addClientSummary(clientId: number | string, content: string): Promise<number> {
+	const res = await query<{ id: number }>(
+		'INSERT INTO client_summaries (client_id, content) VALUES ($1, $2) RETURNING id',
+		[clientId, content]
 	);
+	return res.rows[0].id;
 }
 
 export async function updateClient(item: Client) {
 	invalidateCache();
-	const updateExpression = item.isActive
-		? 'set #name = :name, #isActive = :isActive, #billingStartDayOfMonth = :billingStartDayOfMonth, #updatedAt = :updatedAt, isActiveClient = :isActiveClient'
-		: 'set #name = :name, #isActive = :isActive, #billingStartDayOfMonth = :billingStartDayOfMonth, #updatedAt = :updatedAt REMOVE isActiveClient';
-
-	await dynamoDBDocumentClient.send(
-		new UpdateCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `CLIENT#${item.id}`,
-				SK: 'METADATA'
-			},
-			UpdateExpression: updateExpression,
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#isActive': 'isActive',
-				'#billingStartDayOfMonth': 'billingStartDayOfMonth',
-				'#updatedAt': 'updatedAt'
-			},
-			ExpressionAttributeValues: {
-				':name': item.name,
-				':isActive': item.isActive,
-				':billingStartDayOfMonth': item.billingStartDayOfMonth,
-				':updatedAt': new Date().toISOString(),
-				...(item.isActive ? { ':isActiveClient': 'Y' } : {})
-			}
-		})
+	await query(
+		'UPDATE clients SET name = $1, billing_start_day_of_month = $2, is_active = $3, updated_at = NOW() WHERE id = $4',
+		[item.name, item.billingStartDayOfMonth, item.isActive, item.id]
 	);
 }
 
 export async function updateClientDocument(item: ClientDocument) {
 	invalidateCache();
-	await dynamoDBDocumentClient.send(
-		new UpdateCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `CLIENT#${item.clientId}`,
-				SK: `DOC#${item.id}`
-			},
-			UpdateExpression:
-				'set #name = :name, #type = :type, #content = :content, #updatedAt = :updatedAt',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#content': 'content',
-				'#updatedAt': 'updatedAt'
-			},
-			ExpressionAttributeValues: {
-				':name': item.name,
-				':type': item.type,
-				':content': item.content,
-				':updatedAt': new Date().toISOString()
-			}
-		})
+	await query(
+		'UPDATE client_documents SET name = $1, content_type = $2, content = $3, updated_at = NOW() WHERE id = $4 AND client_id = $5',
+		[item.name, item.type, item.content, item.id, item.clientId]
 	);
 }
 
 export async function getClientById(id: number): Promise<Client> {
-	const getResult = await dynamoDBDocumentClient.send(
-		new GetCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `CLIENT#${id}`,
-				SK: 'METADATA'
-			},
-			ProjectionExpression: 'PK, #name, isActive, billingStartDayOfMonth',
-			ExpressionAttributeNames: { '#name': 'name' }
-		})
+	const res = await query<{ id: number; name: string; is_active: boolean; billing_start_day_of_month: number }>(
+		'SELECT id, name, is_active, billing_start_day_of_month FROM clients WHERE id = $1',
+		[id]
 	);
-	if (!getResult.Item) {
+	if (res.rowCount === 0) {
 		throw new Error('Client not found');
 	}
+	const row = res.rows[0];
 	const client: Client = {
-		id: extractId(getResult.Item.PK, 'CLIENT'),
-		name: getResult.Item.name,
-		isActive: getResult.Item.isActive,
-		billingStartDayOfMonth: getResult.Item.billingStartDayOfMonth
+		id: row.id,
+		name: row.name,
+		isActive: row.is_active,
+		billingStartDayOfMonth: row.billing_start_day_of_month
 	};
 	client.documents = await getClientDocuments(id);
 	client.summaries = await getClientSummaries(id);
@@ -182,24 +95,16 @@ export async function getClientById(id: number): Promise<Client> {
 }
 
 export async function getClientSummaries(clientId: number): Promise<ClientSummary[]> {
-	const queryResult = await dynamoDBDocumentClient.send(
-		new QueryCommand({
-			TableName: TABLE_NAME,
-			KeyConditionExpression: 'PK = :parentKey AND begins_with(SK, :summaryPrefix)',
-			ExpressionAttributeValues: {
-				':parentKey': `CLIENT#${clientId}`,
-				':summaryPrefix': 'SUM#'
-			},
-			ScanIndexForward: false
-		})
+	const res = await query<{ id: number; client_id: number; content: string; created_at: Date }>(
+		'SELECT id, client_id, content, created_at FROM client_summaries WHERE client_id = $1 ORDER BY created_at DESC',
+		[clientId]
 	);
-	return (queryResult.Items ?? []).map((item) => {
-		return {
-			clientId: clientId,
-			content: item.content,
-			createdAt: item.createdAt
-		};
-	});
+	return res.rows.map((row) => ({
+		id: row.id,
+		clientId: row.client_id,
+		content: row.content,
+		createdAt: row.created_at.toISOString()
+	}));
 }
 
 export async function getClients(): Promise<Client[]> {
@@ -207,96 +112,56 @@ export async function getClients(): Promise<Client[]> {
 	if (cachedValues) {
 		return cachedValues as Client[];
 	}
-	const queryResult = await dynamoDBDocumentClient.send(
-		new QueryCommand({
-			TableName: TABLE_NAME,
-			IndexName: 'isActiveClient-index',
-			KeyConditionExpression: 'isActiveClient = :isActiveClient',
-			ExpressionAttributeValues: {
-				':isActiveClient': 'Y'
-			},
-			ScanIndexForward: true,
-			ProjectionExpression: 'PK, SK, #name, isActive, billingStartDayOfMonth',
-			ExpressionAttributeNames: {
-				'#name': 'name'
-			}
-		})
+	const res = await query<{ id: number; name: string; is_active: boolean; billing_start_day_of_month: number }>(
+		'SELECT id, name, is_active, billing_start_day_of_month FROM clients WHERE is_active = true ORDER BY name'
 	);
-	const results = (queryResult.Items || []).map((item) => ({
-		id: extractId(item.PK, 'CLIENT'),
-		name: item.name,
-		isActive: item.isActive,
-		billingStartDayOfMonth: item.billingStartDayOfMonth
+	const results = res.rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		isActive: row.is_active,
+		billingStartDayOfMonth: row.billing_start_day_of_month
 	}));
 	cacheClientList(results);
 	return results;
 }
 
 export async function getClientDocuments(clientId: number): Promise<ClientDocument[]> {
-	const queryResult = await dynamoDBDocumentClient.send(
-		new QueryCommand({
-			TableName: TABLE_NAME,
-			KeyConditionExpression: 'PK = :parentKey AND begins_with(SK, :docPrefix)',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#content': 'content'
-			},
-			ExpressionAttributeValues: {
-				':parentKey': `CLIENT#${clientId}`,
-				':docPrefix': 'DOC#'
-			},
-			ProjectionExpression: 'PK, SK, #name, #type, #content',
-			ScanIndexForward: true
-		})
+	const res = await query<{ id: number; name: string; content_type: string; content: string }>(
+		'SELECT id, name, content_type, content FROM client_documents WHERE client_id = $1 ORDER BY id',
+		[clientId]
 	);
-	return (queryResult.Items ?? []).map((item) => {
-		return {
-			id: item.SK.split('#')[1],
-			name: item.name,
-			type: item.type,
-			content: item.content,
-			clientId: clientId
-		};
-	});
+	return res.rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		type: row.content_type,
+		content: row.content,
+		clientId: clientId
+	}));
 }
 
 export async function updateClientSummary(summary: ClientSummary) {
-	await dynamoDBDocumentClient.send(
-		new UpdateCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `CLIENT#${summary.clientId}`,
-				SK: `SUM#${summary.createdAt}`
-			},
-			UpdateExpression: 'set content = :content',
-			ExpressionAttributeValues: {
-				':content': summary.content
-			}
-		})
+	await query(
+		'UPDATE client_summaries SET content = $1, updated_at = NOW() WHERE id = $2',
+		[summary.content, summary.id]
 	);
 }
 
 export async function getClientSummaryById(
-	clientId: number,
-	createdAt: string
+	id: number
 ): Promise<ClientSummary> {
-	const getResult = await dynamoDBDocumentClient.send(
-		new GetCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `CLIENT#${clientId}`,
-				SK: `SUM#${createdAt}`
-			}
-		})
+	const res = await query<{ id: number; client_id: number; content: string; created_at: Date }>(
+		'SELECT id, client_id, content, created_at FROM client_summaries WHERE id = $1',
+		[id]
 	);
-	if (!getResult.Item) {
+	if (res.rowCount === 0) {
 		throw new Error('Client summary not found');
 	}
+	const row = res.rows[0];
 	return {
-		clientId: clientId,
-		content: getResult.Item.content,
-		createdAt: getResult.Item.createdAt
+		id: row.id,
+		clientId: row.client_id,
+		content: row.content,
+		createdAt: row.created_at.toISOString()
 	};
 }
 
@@ -304,29 +169,19 @@ export async function getClientDocumentById(
 	clientId: number,
 	documentId: number
 ): Promise<ClientDocument> {
-	const getResult = await dynamoDBDocumentClient.send(
-		new GetCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `CLIENT#${clientId}`,
-				SK: `DOC#${documentId}`
-			},
-			ProjectionExpression: '#name, #type, #content',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#content': 'content'
-			}
-		})
+	const res = await query<{ id: number; name: string; content_type: string; content: string }>(
+		'SELECT id, name, content_type, content FROM client_documents WHERE client_id = $1 AND id = $2',
+		[clientId, documentId]
 	);
-	if (!getResult.Item) {
+	if (res.rowCount === 0) {
 		throw new Error(`Client ${clientId} document ${documentId} not found`);
 	}
+	const row = res.rows[0];
 	return {
-		id: documentId,
-		name: getResult.Item.name,
-		type: getResult.Item.type,
-		content: getResult.Item.content,
+		id: row.id,
+		name: row.name,
+		type: row.content_type,
+		content: row.content,
 		clientId: clientId
 	};
 }

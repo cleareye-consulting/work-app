@@ -1,102 +1,39 @@
 import type { WorkItemDocument, WorkItem, WorkItemChangeEvent } from '../../../types';
-import {
-	dynamoDBDocumentClient,
-	extractId,
-	getNextSequenceNumber,
-	TABLE_NAME,
-	TOP_LEVEL_PARENT_ID,
-	TOP_LEVEL_PARENT_NAME
-} from '$lib/server/db';
-import {
-	GetCommand,
-	PutCommand,
-	QueryCommand,
-	TransactWriteCommand,
-	type TransactWriteCommandInput,
-	UpdateCommand
-} from '@aws-sdk/lib-dynamodb';
-import { getActiveStatuses } from '../utils';
-
-function getSearchKey(item: WorkItem, partitionKey: string): string {
-	const parentId = item.parentId ?? TOP_LEVEL_PARENT_ID;
-	const active = getActiveStatuses().includes(item.status) ? 'active' : 'inactive';
-	return `${parentId}#${active}#${partitionKey}`;
-}
+import { query } from '$lib/server/db';
 
 export async function addWorkItem(item: WorkItem): Promise<number> {
-	const newId = await getNextSequenceNumber('WI');
-	const partitionKey = `WI#${newId}`;
-	const metaDataItem = {
-		PK: partitionKey,
-		SK: 'METADATA',
-		searchKey: getSearchKey(item, partitionKey),
-		name: item.name,
-		type: item.type,
-		status: item.status,
-		clientId: item.clientId,
-		clientName: item.clientName,
-		parentId: item.parentId ?? TOP_LEVEL_PARENT_ID,
-		parentName: item.parentName ?? TOP_LEVEL_PARENT_NAME,
-		description: item.description ?? null,
-		customFields: item.customFields ?? {},
-		createdAt: new Date().toISOString(),
-		updatedAt: new Date().toISOString()
-	};
-
-	await dynamoDBDocumentClient.send(
-		new PutCommand({
-			TableName: TABLE_NAME,
-			Item: metaDataItem
-		})
+	const res = await query<{ id: number }>(
+		'INSERT INTO work_items (name, work_item_type, status, description, client_id, parent_id, custom_fields) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+		[
+			item.name,
+			item.type,
+			item.status,
+			item.description ?? null,
+			item.clientId,
+			item.parentId ?? null,
+			item.customFields ?? {}
+		]
 	);
-	return newId;
+	return res.rows[0].id;
 }
 
 export async function addWorkItemDocument(item: WorkItemDocument): Promise<number> {
-	const newId = await getNextSequenceNumber('DOC-WI');
-	const workItem = await getWorkItemById(item.workItemId);
-	const now = new Date().toISOString();
+	const res = await query<{ id: number }>(
+		'INSERT INTO work_item_documents (work_item_id, name, content_type, content, summary) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+		[item.workItemId, item.name, item.type, item.content, item.summary ?? '']
+	);
+	const newId = res.rows[0].id;
 
-	const transactItems: NonNullable<TransactWriteCommandInput['TransactItems']> = [
-		{
-			Put: {
-				TableName: TABLE_NAME,
-				Item: {
-					PK: `WI#${item.workItemId}`,
-					SK: `DOC#${newId}`,
-					name: item.name,
-					type: item.type,
-					content: item.content,
-					summary: item.summary ?? null,
-					createdAt: now,
-					updatedAt: now
-				}
-			}
-		},
-		{
-			Put: {
-				TableName: TABLE_NAME,
-				Item: {
-					PK: `WI#${item.workItemId}`,
-					SK: `EVT#${now}`,
-					itemType: 'EVENT',
-					clientId: workItem.clientId,
-					content: `Document added: ${item.name}`,
-					createdAt: now
-				}
-			}
-		}
-	];
-
-	await dynamoDBDocumentClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+	await query(
+		'INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)',
+		[item.workItemId, `Document added: ${item.name}`]
+	);
 
 	return newId;
 }
 
 export async function updateWorkItem(item: WorkItem) {
-	const pk = `WI#${item.id}`;
 	const oldItem = await getWorkItemById(item.id!);
-	const now = new Date().toISOString();
 	const changes = [];
 
 	if (item.status !== oldItem.status) {
@@ -112,295 +49,222 @@ export async function updateWorkItem(item: WorkItem) {
 		}
 	}
 
-	const transactItems: NonNullable<TransactWriteCommandInput['TransactItems']> = [
-		{
-			Update: {
-				TableName: TABLE_NAME,
-				Key: { PK: pk, SK: 'METADATA' },
-				UpdateExpression: `SET 
-          #n = :n, #t = :t, #s = :s, 
-          searchKey = :sk, parentId = :pid, 
-          description = :desc, customFields = :cf, 
-          updatedAt = :updatedAt`,
-				ExpressionAttributeNames: { '#n': 'name', '#t': 'type', '#s': 'status' },
-				ExpressionAttributeValues: {
-					':n': item.name,
-					':t': item.type,
-					':s': item.status,
-					':sk': getSearchKey(item, pk),
-					':pid': item.parentId ?? TOP_LEVEL_PARENT_ID,
-					':desc': item.description || null,
-					':cf': item.customFields || {},
-					':updatedAt': now
-				}
-			}
-		}
-	];
+	await query(
+		'UPDATE work_items SET name = $1, work_item_type = $2, status = $3, description = $4, parent_id = $5, custom_fields = $6, updated_at = NOW() WHERE id = $7',
+		[
+			item.name,
+			item.type,
+			item.status,
+			item.description || null,
+			item.parentId ?? null,
+			item.customFields || {},
+			item.id
+		]
+	);
 
 	if (changes.length > 0) {
-		transactItems.push({
-			Put: {
-				TableName: TABLE_NAME,
-				Item: {
-					PK: pk,
-					SK: `EVT#${now}`,
-					itemType: 'EVENT',
-					clientId: item.clientId,
-					content: changes.join(' | '),
-					createdAt: now
-				}
-			}
-		});
+		await query(
+			'INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)',
+			[item.id, changes.join(' | ')]
+		);
 	}
-
-	await dynamoDBDocumentClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
 }
 
 export async function updateWorkItemDocument(item: WorkItemDocument) {
-	const workItem = await getWorkItemById(item.workItemId);
-	const now = new Date().toISOString();
+	await query(
+		'UPDATE work_item_documents SET name = $1, content_type = $2, content = $3, summary = $4, updated_at = NOW() WHERE id = $5 AND work_item_id = $6',
+		[item.name, item.type, item.content, item.summary ?? '', item.id, item.workItemId]
+	);
 
-	const transactItems: NonNullable<TransactWriteCommandInput['TransactItems']> = [
-		{
-			Update: {
-				TableName: TABLE_NAME,
-				Key: {
-					PK: `WI#${item.workItemId}`,
-					SK: `DOC#${item.id}`
-				},
-				UpdateExpression:
-					'set #name = :name, #type = :type, #content = :content, #updatedAt = :updatedAt, summary = :summary',
-				ExpressionAttributeNames: {
-					'#name': 'name',
-					'#type': 'type',
-					'#content': 'content',
-					'#updatedAt': 'updatedAt'
-				},
-				ExpressionAttributeValues: {
-					':name': item.name,
-					':type': item.type,
-					':content': item.content,
-					':updatedAt': now,
-					':summary': item.summary ?? null
-				}
-			}
-		},
-		{
-			Put: {
-				TableName: TABLE_NAME,
-				Item: {
-					PK: `WI#${item.workItemId}`,
-					SK: `EVT#${now}`,
-					itemType: 'EVENT',
-					clientId: workItem.clientId,
-					content: `Document updated: ${item.name}`,
-					createdAt: now
-				}
-			}
-		}
-	];
-
-	await dynamoDBDocumentClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+	await query(
+		'INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)',
+		[item.workItemId, `Document updated: ${item.name}`]
+	);
 }
 
 export async function getTopLevelWorkItemsForClient(
 	clientId: number,
 	statuses: string[] | null
 ): Promise<WorkItem[]> {
-	const queryResult = await dynamoDBDocumentClient.send(
-		new QueryCommand({
-			TableName: TABLE_NAME,
-			IndexName: 'clientId-searchKey-index',
-			KeyConditionExpression: 'clientId = :clientId AND begins_with(searchKey, :searchKey)',
-			ExpressionAttributeValues: {
-				':clientId': clientId,
-				':searchKey': '0#active#WI#'
-			},
-			ScanIndexForward: true,
-			ProjectionExpression: 'PK, entityType, #name, #type, #status, clientId, parentId',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#status': 'status'
-			}
-		})
-	);
-	const results: WorkItem[] = [];
-	for (const item of queryResult.Items || []) {
-		if (statuses && !statuses.includes(item.status)) {
-			continue;
-		}
-		results.push({
-			id: extractId(item.PK, 'WI'),
-			name: item.name,
-			type: item.type,
-			status: item.status,
-			clientId: item.clientId,
-			clientName: item.clientName,
-			parentId: item.parentId,
-			parentName: item.parentName,
-			customFields: {}
-		});
+	let sql = 'SELECT id, name, work_item_type, status, client_id, parent_id FROM work_items WHERE client_id = $1 AND parent_id IS NULL';
+	const params: any[] = [clientId];
+
+	if (statuses && statuses.length > 0) {
+		sql += ' AND status = ANY($2)';
+		params.push(statuses);
 	}
-	return results;
+
+	sql += ' ORDER BY name';
+
+	const res = await query<{
+		id: number;
+		name: string;
+		work_item_type: string;
+		status: string;
+		client_id: number;
+		parent_id: number | null;
+	}>(sql, params);
+
+	return res.rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		type: row.work_item_type,
+		status: row.status,
+		clientId: row.client_id,
+		clientName: '', // This might need to be joined if needed, but original code didn't join it from DynamoDB
+		parentId: row.parent_id ?? undefined,
+		customFields: {}
+	}));
 }
 
 export async function getChildWorkItems(
 	parent: WorkItem,
 	statuses: string[] | null
 ): Promise<WorkItem[]> {
-	const queryResult = await dynamoDBDocumentClient.send(
-		new QueryCommand({
-			TableName: TABLE_NAME,
-			IndexName: 'clientId-searchKey-index',
-			KeyConditionExpression: 'clientId = :clientId AND begins_with(searchKey, :searchKey)',
-			ExpressionAttributeValues: {
-				':clientId': parent.clientId,
-				':searchKey': `${parent.id}#active#WI#`
-			},
-			ScanIndexForward: true,
-			ProjectionExpression: 'PK, #name, #type, #status, clientId, parentId',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#status': 'status'
-			}
-		})
-	);
-	const clientWorkItems = (queryResult.Items || []).map((item) => ({
-		id: extractId(item.PK, 'WI'),
-		name: item.name,
-		type: item.type,
-		status: item.status,
-		clientId: item.clientId,
-		parentId: item.parentId
-	})) as WorkItem[];
-	if (statuses) {
-		return clientWorkItems.filter((item) => statuses.includes(item.status));
+	let sql = 'SELECT id, name, work_item_type, status, client_id, parent_id FROM work_items WHERE parent_id = $1';
+	const params: any[] = [parent.id];
+
+	if (statuses && statuses.length > 0) {
+		sql += ' AND status = ANY($2)';
+		params.push(statuses);
 	}
-	return clientWorkItems;
+
+	sql += ' ORDER BY name';
+
+	const res = await query<{
+		id: number;
+		name: string;
+		work_item_type: string;
+		status: string;
+		client_id: number;
+		parent_id: number | null;
+	}>(sql, params);
+
+	return res.rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		type: row.work_item_type,
+		status: row.status,
+		clientId: row.client_id,
+		parentId: row.parent_id ?? undefined,
+		customFields: {}
+	}));
 }
 
 export async function getWorkItemById(id: number): Promise<WorkItem> {
-	const getResponse = await dynamoDBDocumentClient.send(
-		new GetCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `WI#${id}`,
-				SK: 'METADATA'
-			},
-			ProjectionExpression:
-				'PK, #name, #type, #status, clientId, clientName, parentId, parentName, description, customFields',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#status': 'status'
-			}
-		})
+	const res = await query<{
+		id: number;
+		name: string;
+		work_item_type: string;
+		status: string;
+		client_id: number;
+		parent_id: number | null;
+		description: string | null;
+		custom_fields: any;
+		client_name: string;
+	}>(
+		`SELECT w.*, c.name as client_name 
+         FROM work_items w 
+         JOIN clients c ON w.client_id = c.id 
+         WHERE w.id = $1`,
+		[id]
 	);
-	if (!getResponse.Item) {
+
+	if (res.rowCount === 0) {
 		throw new Error('Work item not found');
 	}
+	const row = res.rows[0];
 	const workItem: WorkItem = {
-		id: extractId(getResponse.Item.PK, 'WI'),
-		name: getResponse.Item.name,
-		type: getResponse.Item.type,
-		status: getResponse.Item.status,
-		parentId: getResponse.Item.parentId,
-		parentName: getResponse.Item.parentName,
-		clientId: getResponse.Item.clientId,
-		clientName: getResponse.Item.clientName,
-		description: getResponse.Item.description,
-		customFields: getResponse.Item.customFields || {}
+		id: row.id,
+		name: row.name,
+		type: row.work_item_type,
+		status: row.status,
+		parentId: row.parent_id ?? undefined,
+		clientId: row.client_id,
+		clientName: row.client_name,
+		description: row.description ?? undefined,
+		customFields: row.custom_fields || {}
 	};
+
 	workItem.documents = await getWorkItemDocuments(id);
 	workItem.children = await getChildWorkItems(workItem, null);
 	return workItem;
 }
 
-export async function getWorkItemDocuments( workItemId: number ): Promise<WorkItemDocument[]> {
-	const queryResult = await dynamoDBDocumentClient.send(
-		new QueryCommand({
-			TableName: TABLE_NAME,
-			KeyConditionExpression: 'PK = :parentKey AND begins_with(SK, :docPrefix)',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#content': 'content'
-			},
-			ExpressionAttributeValues: {
-				':parentKey': `WI#${workItemId}`,
-				':docPrefix': 'DOC#'
-			},
-			ProjectionExpression: 'PK, SK, #name, #type, #content, summary',
-			ScanIndexForward: true
-		})
+export async function getWorkItemDocuments(workItemId: number): Promise<WorkItemDocument[]> {
+	const res = await query<{
+		id: number;
+		name: string;
+		content_type: string;
+		content: string;
+		summary: string | null;
+	}>(
+		'SELECT id, name, content_type, content, summary FROM work_item_documents WHERE work_item_id = $1 ORDER BY id',
+		[workItemId]
 	);
-	return (queryResult.Items ?? []).map((item) => {
-		return {
-			id: item.SK.split('#')[1],
-			name: item.name,
-			type: item.type,
-			content: item.content,
-			workItemId: workItemId,
-			summary: item.summary ?? null
-		};
-	});
+
+	return res.rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		type: row.content_type,
+		content: row.content,
+		workItemId: workItemId,
+		summary: row.summary ?? undefined
+	}));
 }
 
 export async function getWorkItemDocumentById(
 	workItemId: number,
 	documentId: number
 ): Promise<WorkItemDocument> {
-	const getResult = await dynamoDBDocumentClient.send(
-		new GetCommand({
-			TableName: TABLE_NAME,
-			Key: {
-				PK: `WI#${workItemId}`,
-				SK: `DOC#${documentId}`
-			},
-			ProjectionExpression: '#name, #type, #content',
-			ExpressionAttributeNames: {
-				'#name': 'name',
-				'#type': 'type',
-				'#content': 'content'
-			}
-		})
+	const res = await query<{
+		id: number;
+		name: string;
+		content_type: string;
+		content: string;
+		summary: string | null;
+	}>(
+		'SELECT id, name, content_type, content, summary FROM work_item_documents WHERE work_item_id = $1 AND id = $2',
+		[workItemId, documentId]
 	);
-	if (!getResult.Item) {
+
+	if (res.rowCount === 0) {
 		throw new Error('Work item document not found');
 	}
+	const row = res.rows[0];
 	return {
-		id: documentId,
-		name: getResult.Item.name,
-		type: getResult.Item.type,
-		content: getResult.Item.content,
-		workItemId
+		id: row.id,
+		name: row.name,
+		type: row.content_type,
+		content: row.content,
+		workItemId,
+		summary: row.summary ?? undefined
 	};
 }
 
-export async function getEventsForRange(clientId: number, startDate: Date, endDate: Date): Promise<WorkItemChangeEvent[]> {
-	const params = {
-		TableName: TABLE_NAME,
-		IndexName: 'ItemTypeIndex',
-		KeyConditionExpression: 'itemType = :type AND createdAt BETWEEN :start AND :end',
-		ExpressionAttributeValues: {
-			':type': 'EVENT',
-			':start': startDate.toISOString(),
-			':end': endDate.toISOString()
-		}
-	};
-
-	const response = await dynamoDBDocumentClient.send(new QueryCommand(params));
-	const items = response.Items ?? [];
-
-	return (
-		items
-			.filter((item) => item.clientId === clientId)
-			.map((item) => ({
-				workItemId: extractId(item.PK, 'WI'),
-				createdAt: new Date(item.createdAt),
-				summaryOfChanges: item.content || ''
-			}))
+export async function getEventsForRange(
+	clientId: number,
+	startDate: Date,
+	endDate: Date
+): Promise<WorkItemChangeEvent[]> {
+	const res = await query<{
+		id: number;
+		work_item_id: number;
+		created_at: Date;
+		summary_of_changes: string;
+	}>(
+		`SELECT wic.id, wic.work_item_id, wic.created_at, wic.summary_of_changes 
+         FROM work_item_changes wic
+         JOIN work_items wi ON wic.work_item_id = wi.id
+         WHERE wi.client_id = $1 AND wic.created_at BETWEEN $2 AND $3
+         ORDER BY wic.created_at DESC`,
+		[clientId, startDate, endDate]
 	);
+
+	return res.rows.map((row) => ({
+		id: row.id,
+		workItemId: row.work_item_id,
+		createdAt: row.created_at,
+		summaryOfChanges: row.summary_of_changes
+	}));
 }

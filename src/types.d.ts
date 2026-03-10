@@ -39,12 +39,14 @@ export interface WorkItemDocument extends Document {
 }
 
 export interface WorkItemChangeEvent {
+	id?: number;
 	workItemId: number;
 	createdAt: Date;
 	summaryOfChanges: string;
 }
 
 export interface ClientSummary {
+	id?: number;
 	clientId: number;
 	content: string;
 	createdAt: string;

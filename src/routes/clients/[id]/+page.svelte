@@ -50,9 +50,9 @@ function handlePeriodChange() {
 <hr class="my-4" />
 <h3 class="text-2xl mb-4">Summaries</h3>
 <div class="space-y-4">
- {#each data.client.summaries ?? [] as summary (summary.createdAt)}
+ {#each data.client.summaries ?? [] as summary (summary.id)}
 	<div class="mb-2">
-		<A href="/clients/{data.client.id}/summaries/{summary.createdAt}">
+		<A href="/clients/{data.client.id}/summaries/{summary.id}">
 			{new Date(summary.createdAt).toLocaleDateString()} {new Date(summary.createdAt).toLocaleTimeString()}
 		</A>
 	</div>
