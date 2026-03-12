@@ -87,3 +87,28 @@ export async function stopTracking(timeEntryId: number, workItemId: number): Pro
 		[timeEntryId, workItemId]
 	);
 }
+
+export async function getTimeEntriesByWorkItem(workItemId: number): Promise<TimeEntry[]> {
+	const res = await query<{
+		id: number;
+		work_item_id: number;
+		client_id: number;
+		start_time: Date;
+		end_time: Date | null;
+	}>(
+		`SELECT te.id, te.work_item_id, wi.client_id, te.start_time, te.end_time 
+         FROM time_entries te
+         JOIN work_items wi ON te.work_item_id = wi.id
+         WHERE te.work_item_id = $1
+         ORDER BY te.start_time DESC`,
+		[workItemId]
+	);
+
+	return res.rows.map((row) => ({
+		id: row.id,
+		workItemId: row.work_item_id,
+		clientId: row.client_id,
+		startTime: row.start_time.toISOString(),
+		endTime: row.end_time?.toISOString()
+	}));
+}

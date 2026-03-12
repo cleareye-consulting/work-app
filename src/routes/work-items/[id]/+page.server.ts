@@ -3,13 +3,19 @@ import { getWorkItemById, updateWorkItem } from '$lib/server/repositories/workIt
 import { getActiveStatuses, workItemStatuses, workItemTypes } from '$lib/server/utils';
 import { redirect } from '@sveltejs/kit';
 import { getClientName } from '$lib/server/repositories/clientRepository.js';
-import { getTimeTrackingStatus, startTracking, stopTracking } from '$lib/server/repositories/timeRepository';
+import {
+	getTimeEntriesByWorkItem,
+	getTimeTrackingStatus,
+	startTracking,
+	stopTracking
+} from '$lib/server/repositories/timeRepository';
 
 export async function load({ params }) {
 	const id = params.id;
 	const workItem = await getWorkItemById(+id);
 	const activeStatuses = getActiveStatuses();
 	const timeTrackingStatus = await getTimeTrackingStatus();
+	const timeEntries = await getTimeEntriesByWorkItem(+id);
 	return {
 		workItem: {
 			...workItem,
@@ -17,6 +23,7 @@ export async function load({ params }) {
 			children: workItem.children?.filter((wi) => activeStatuses.includes(wi.status))
 		},
 		timeTrackingStatus,
+		timeEntries,
 		workItemStatuses: workItemStatuses,
 		workItemTypes: workItemTypes,
 		featureFlags: {
