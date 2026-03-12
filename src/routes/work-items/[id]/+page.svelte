@@ -19,6 +19,20 @@
 	const isTrackingThisItem = $derived(
 		data.timeTrackingStatus.activeWorkItemId === data.workItem.id
 	);
+	function formatDuration(start: string, end?: string) {
+		if (!end) return 'In Progress';
+		const durationMs = new Date(end).getTime() - new Date(start).getTime();
+		const hours = Math.floor(durationMs / 3600000);
+		const minutes = Math.floor((durationMs % 3600000) / 60000);
+		const seconds = Math.floor((durationMs % 60000) / 1000);
+		return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+	}
+	function formatDate(dateStr: string) {
+		return new Date(dateStr).toLocaleDateString();
+	}
+	function formatTime(dateStr: string) {
+		return new Date(dateStr).toLocaleTimeString();
+	}
 	export function camelCaseToTitleCaseWithSpaces(input: string) {
 		const step1 = input.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
 		return step1.charAt(0).toUpperCase() + step1.slice(1);
@@ -161,4 +175,30 @@
 {/if}
 <div class="mt-4 flex items-center gap-2">
 	<A href={`/work-items/${data.workItem?.id}/documents/new`}>New Document</A>
+</div>
+<hr class="my-4" />
+<h3 class="text-2xl">Time Tracking</h3>
+<div class="mb-3">
+{#if data.timeEntries?.length !== 0}
+	<Table>
+		<thead>
+		<tr>
+			<TH>Date</TH>
+			<TH>Start Time</TH>
+			<TH>End Time</TH>
+			<TH>Duration</TH>
+		</tr>
+		</thead>
+		<tbody>
+		{#each data.timeEntries as entry (entry.id)}
+			<tr>
+				<TD>{formatDate(entry.startTime)}</TD>
+				<TD>{formatTime(entry.startTime)}</TD>
+				<TD>{entry.endTime ? formatTime(entry.endTime) : '-'}</TD>
+				<TD>{formatDuration(entry.startTime, entry.endTime)}</TD>
+			</tr>
+		{/each}
+		</tbody>
+	</Table>
+{/if}
 </div>
