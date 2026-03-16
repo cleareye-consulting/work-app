@@ -2,6 +2,7 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.png';
 	import { signIn, signOut } from '@auth/sveltekit/client';
+	import A from '../components/A.svelte';
 
 	let { data, children } = $props();
 </script>
@@ -14,9 +15,21 @@
 
 <div class="container mx-auto">
 	<div class="flex items-center justify-between">
-		<h1 class="my-3 text-4xl font-bold"><a href="/">Work App</a></h1>
+		<h1 class="my-3 text-4xl font-bold"><A href="/" class="!text-black !no-underline">Work App</A></h1>
 		{#if data.session}
 			<div class="flex items-center gap-4">
+				{#if data.activeWorkItem}
+					<div class="flex items-center gap-2 rounded bg-amber-50 px-3 py-1 text-sm border border-amber-200">
+						<span class="animate-pulse text-amber-600">●</span>
+						<span class="text-gray-600">Tracking:</span>
+						<A
+							href="/work-items/{data.activeWorkItem.id}"
+							class="!text-amber-800 font-medium !no-underline hover:!underline"
+						>
+							{data.activeWorkItem.name}
+						</A>
+					</div>
+				{/if}
 				<span class="text-sm text-gray-600">{data.session.user?.email}</span>
 				<button
 					onclick={() => signOut()}
