@@ -58,9 +58,7 @@ export const actions = {
 		}
 
 		await updateWorkItem(workItemUpdate);
-
-		const redirectUrl = workItemUpdate.parentId ? `/work-items/${workItemUpdate.parentId}` : `/work-items?clientId=${workItemUpdate.clientId}`;
-		redirect(303, redirectUrl);
+		return { success: true };
 	},
 	startTracking: async ({ request }) => {
 		const formData = await request.formData();
