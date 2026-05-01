@@ -87,7 +87,7 @@ export async function getTopLevelWorkItemsForClient(
 	statuses: string[] | null
 ): Promise<WorkItem[]> {
 	let sql = 'SELECT id, name, work_item_type, status, client_id, parent_id FROM work_items WHERE client_id = $1 AND parent_id IS NULL';
-	const params: any[] = [clientId];
+	const params: (number | string[])[] = [clientId];
 
 	if (statuses && statuses.length > 0) {
 		sql += ' AND status = ANY($2)';
@@ -121,15 +121,12 @@ export async function getChildWorkItems(
 	parent: WorkItem,
 	statuses: string[] | null
 ): Promise<WorkItem[]> {
-	let sql = 'SELECT id, name, work_item_type, status, client_id, parent_id FROM work_items WHERE parent_id = $1';
-	const params: any[] = [parent.id];
-
-	if (statuses && statuses.length > 0) {
-		sql += ' AND status = ANY($2)';
-		params.push(statuses);
-	}
-
-	sql += ' ORDER BY name';
+	const sql = `
+		SELECT id, name, work_item_type, status, client_id, parent_id
+		FROM work_items
+		WHERE parent_id = $1 AND ($2::text[] IS NULL OR status = ANY($2))
+		ORDER BY NAME;`;
+	const params= [parent.id, statuses?.length ? statuses : null];
 
 	const res = await query<{
 		id: number;
@@ -146,6 +143,7 @@ export async function getChildWorkItems(
 		type: row.work_item_type,
 		status: row.status,
 		clientId: row.client_id,
+		clientName: parent.clientName,
 		parentId: row.parent_id ?? undefined,
 		customFields: {}
 	}));
@@ -160,7 +158,7 @@ export async function getWorkItemById(id: number): Promise<WorkItem> {
 		client_id: number;
 		parent_id: number | null;
 		description: string | null;
-		custom_fields: any;
+		custom_fields: Record<string, unknown>;
 		client_name: string;
 	}>(
 		`SELECT w.*, c.name as client_name 
@@ -187,7 +185,6 @@ export async function getWorkItemById(id: number): Promise<WorkItem> {
 	};
 
 	workItem.documents = await getWorkItemDocuments(id);
-	workItem.children = await getChildWorkItems(workItem, null);
 	return workItem;
 }
 

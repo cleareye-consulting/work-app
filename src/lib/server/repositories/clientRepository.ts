@@ -103,8 +103,21 @@ export async function getClientSummaries(clientId: number): Promise<ClientSummar
 		id: row.id,
 		clientId: row.client_id,
 		content: row.content,
-		createdAt: row.created_at.toISOString()
+		createdAt: row.created_at
 	}));
+}
+
+export async function getLatestClientSummary(clientId: number): Promise<ClientSummary | null> {
+	const res = await query<{ id: number; client_id: number; content: string; created_at: Date }>(
+		'SELECT id, client_id, content, created_at FROM client_summaries WHERE client_id = $1 ORDER BY created_at DESC LIMIT 1',
+		[clientId]
+	);
+	return res.rows.length > 0 ? ({
+		id: res.rows[0].id,
+		clientId: res.rows[0].client_id,
+		content: res.rows[0].content,
+		createdAt: res.rows[0].created_at
+	}) : null;
 }
 
 export async function getClients(): Promise<Client[]> {
@@ -161,7 +174,7 @@ export async function getClientSummaryById(
 		id: row.id,
 		clientId: row.client_id,
 		content: row.content,
-		createdAt: row.created_at.toISOString()
+		createdAt: row.created_at
 	};
 }
 

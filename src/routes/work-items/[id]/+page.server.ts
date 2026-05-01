@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private';
-import { getWorkItemById, updateWorkItem } from '$lib/server/repositories/workItemRepository';
+import { getChildWorkItems, getWorkItemById, updateWorkItem } from '$lib/server/repositories/workItemRepository';
 import { getActiveStatuses, workItemStatuses, workItemTypes } from '$lib/server/utils';
 import { redirect } from '@sveltejs/kit';
 import { getClientName } from '$lib/server/repositories/clientRepository.js';
@@ -14,13 +14,14 @@ export async function load({ params }) {
 	const id = params.id;
 	const workItem = await getWorkItemById(+id);
 	const activeStatuses = getActiveStatuses();
+	const children = await getChildWorkItems(workItem, activeStatuses)
 	const timeTrackingStatus = await getTimeTrackingStatus();
 	const timeEntries = await getTimeEntriesByWorkItem(+id);
 	return {
 		workItem: {
 			...workItem,
 			documents: workItem.documents,
-			children: workItem.children?.filter((wi) => activeStatuses.includes(wi.status))
+			children
 		},
 		timeTrackingStatus,
 		timeEntries,

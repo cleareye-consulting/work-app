@@ -1,7 +1,14 @@
-import { addClientSummary, getClientSummaries } from '$lib/server/repositories/clientRepository';
-import { getEventsForRange, getWorkItemDocuments, getWorkItemById } from '$lib/server/repositories/workItemRepository';
-import { generateClientSummary } from '$lib/server/ai';
+import {
+	addClientSummary,
+	getLatestClientSummary
+} from '$lib/server/repositories/clientRepository';
+import {
+	getEventsForRange,
+	getWorkItemById,
+} from '$lib/server/repositories/workItemRepository';
+import { type ClientSummaryWorkItemInput, generateClientSummary } from '$lib/server/ai';
 import { redirect } from '@sveltejs/kit';
+import type {  WorkItemChangeEvent } from '../../../../../types';
 
 export async function load({ params }) {
 	return {
@@ -9,11 +16,24 @@ export async function load({ params }) {
 	};
 }
 
+async function getSummaryWorkItemInput(workItemId: number, allCurrentEvents: WorkItemChangeEvent[]): Promise<ClientSummaryWorkItemInput> {
+	const workItem = await getWorkItemById(workItemId);
+	const events = allCurrentEvents.filter(e => e.workItemId === workItemId);
+	let parent: ClientSummaryWorkItemInput | null = null;
+	if (workItem.parentId) {
+		parent = await getSummaryWorkItemInput(workItem.parentId!, allCurrentEvents);
+	}
+	return {
+		workItem,
+		events,
+		parent
+	};
+}
+
 export const actions = {
 	generate: async ({ params }) => {
 		const clientId = +params.id;
-		const summaries = await getClientSummaries(clientId);
-		const lastSummary = summaries.length > 0 ? summaries[0] : null;
+		const lastSummary = await getLatestClientSummary(clientId);
 		
 		const startDate = lastSummary 
 			? new Date(lastSummary.createdAt) 
@@ -22,27 +42,12 @@ export const actions = {
 
 		const events = await getEventsForRange(clientId, startDate, endDate);
 		
-		// Get unique work item IDs from events
-		const workItemIds = [...new Set(events.map(e => e.workItemId))];
-		
-		// Fetch full work item details to get hierarchy and names
-		const workItems = await Promise.all(
-			workItemIds.map(id => getWorkItemById(id))
-		);
-
-		const workItemMap = new Map(workItems.map(wi => [wi.id, wi]));
-		
-		// Fetch documents for each work item
-		const documents = (await Promise.all(
-			workItemIds.map(id => getWorkItemDocuments(id))
-		)).flat();
-
-		const generatedContent = await generateClientSummary(
-			lastSummary?.content || null,
-			events,
-			documents,
-			workItems
-		);
+		const changedWorkItemIds = [...new Set(events.map(e => e.workItemId))];
+		const summaryWorkItems = await Promise.all(changedWorkItemIds.map(id => getSummaryWorkItemInput(id, events)));
+		const generatedContent = await generateClientSummary({
+			lastSummary: lastSummary?.content ?? null,
+			workItems: summaryWorkItems
+		});
 
 		return {
 			generatedContent

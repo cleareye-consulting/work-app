@@ -1,5 +1,6 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
 import { GEMINI_API_KEY } from '$env/static/private';
+import type { WorkItem, WorkItemChangeEvent, WorkItemDocument } from '../../types';
 
 export async function generateDocumentSummary(content: string) {
 	const provider = process.env.AI_PROVIDER || 'gemini';
@@ -99,72 +100,74 @@ async function geminiSummary(content: string) {
 	}
 }
 
-export async function generateClientSummary(
-	lastSummary: string | null,
-	events: any[],
-	documents: any[],
-	workItems: any[]
-) {
+export interface ClientSummaryWorkItemInput {
+	workItem: WorkItem;
+	events: WorkItemChangeEvent[];
+	parent: ClientSummaryWorkItemInput | null;
+}
+
+export interface ClientSummaryInput {
+	lastSummary: string | null;
+	workItems: ClientSummaryWorkItemInput[];
+}
+
+function renderWorkItemInput(input: ClientSummaryWorkItemInput, depth = 0): string {
+	const { workItem, events } = input;
+	const indent = '  '.repeat(depth);
+
+	let out = `${indent}### ${workItem.type}: ${workItem.name}\n`;
+	out += `${indent}Status: ${workItem.status}\n`;
+
+	if (workItem.description) {
+		out += `${indent}Description: ${workItem.description}\n`;
+	}
+
+	if (Object.keys(workItem.customFields).length) {
+		out += `${indent}Custom Fields: ${JSON.stringify(workItem.customFields)}\n`;
+	}
+
+	if (events.length) {
+		out += `${indent}Changes this period:\n`;
+		for (const event of events) {
+			out += `${indent}  - ${event.summaryOfChanges}\n`;
+		}
+	}
+
+	if (workItem.documents?.length) {
+		out += `${indent}Notes:\n`;
+		for (const doc of workItem.documents) {
+			out += `${indent}  [${doc.name}]\n`;
+			out += `${indent}  ${doc.content.replace(/\n/g, `\n${indent}  `)}\n`;
+		}
+	}
+
+	if (input.parent) {
+		out += `${indent}Parent context:\n`;
+		out += renderWorkItemInput(input.parent, depth + 1);
+	}
+
+	return out;
+}
+
+export async function generateClientSummary(input: ClientSummaryInput) {
 	const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-	const workItemMap = new Map(workItems.map((wi) => [wi.id, wi]));
+	const workItemsText = input.workItems.map((wi) => renderWorkItemInput(wi)).join('\n---\n');
 
-	// Group events and documents by work item to preserve context
-	const workItemContexts = workItems.map((wi) => {
-		const wiEvents = events.filter((e) => e.workItemId === wi.id);
-		const wiDocuments = documents.filter((d) => d.workItemId === wi.id);
+	const prompt = `You are preparing a weekly progress summary for a client.
+${input.lastSummary ? `## Previous Summary\n${input.lastSummary}\n` : '## Previous Summary\nThis is the first summary for this client.\n'}
+## Work Items With Activity This Period
+${workItemsText}
 
-		if (wiEvents.length === 0 && wiDocuments.length === 0) return null;
+## Instructions
+Write an updated client-facing summary that:
+- Reflects the current state of all active work
+- Highlights what changed or progressed this period
+- Notes any blockers, pending items, or open questions from the notes
+- Incorporates relevant context from parent items
+- Is written in plain, direct language — professional but conversational, as if giving a colleague a straightforward update. Avoid business jargon and filler phrases. Focus on what was done, what it means, and what's next.
+`;
 
-		const parentInfo = wi.parentId && wi.parentId !== 0 
-			? ` (Parent: ${wi.parentName || 'Work Item #' + wi.parentId})` 
-			: ' (Top-level Project)';
-
-		let context = `### Work Item: ${wi.name} [Type: ${wi.type}]${parentInfo}\n`;
-		context += `Status: ${wi.status}\n`;
-		if (wi.description) context += `Description: ${wi.description}\n`;
-
-		if (wiEvents.length > 0) {
-			context += `Recent Changes:\n`;
-			wiEvents.forEach((e) => {
-				context += `- ${e.createdAt.toLocaleString()}: ${e.summaryOfChanges}\n`;
-			});
-		}
-
-		if (wiDocuments.length > 0) {
-			context += `Related Documents/Notes:\n`;
-			wiDocuments.forEach((d) => {
-				context += `- ${d.name} (${d.type}): ${d.summary || d.content.substring(0, 1000)}\n`;
-			});
-		}
-
-		return context;
-	}).filter(Boolean);
-
-	const contextText = workItemContexts.join('\n---\n');
-
-	const prompt = `
-        You are a professional assistant drafting a weekly client summary.
-        
-        PREVIOUS SUMMARY:
-        ${lastSummary || 'No previous summary available.'}
-        
-        RECENT ACTIVITY (Organized by Work Item):
-        ${contextText || 'No recent activity recorded.'}
-        
-        Based on the previous summary and the recent activity (events and documents) organized by work item, draft a new client summary.
-        
-        GUIDELINES:
-        - The audience is technical enough to understand details but interested in business outcomes.
-        - Goal: Communicate progress on business objectives and technical milestones.
-        - Group the summary by project or major feature. Do NOT blend all work together into a single chronological narrative.
-        - Use the work item names and types to provide context.
-        - Pay close attention to the parent/child relationships. A child item's progress should be discussed in the context of its parent project/feature when appropriate.
-        - Note any blockers explicitly.
-        - This is a RETROSPECTIVE summary. Do not speculate on future work.
-        - Tone: Reference the provided documents/notes for tone, but prefer simple and clear communication over "punchy" or overly corporate language.
-        - Output Format: Markdown. Use headers to separate distinct projects or focus areas.
-    `;
 
 	try {
 		const response = await ai.models.generateContent({

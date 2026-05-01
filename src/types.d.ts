@@ -49,7 +49,7 @@ export interface ClientSummary {
 	id?: number;
 	clientId: number;
 	content: string;
-	createdAt: string;
+	createdAt: Date;
 }
 
 export interface TimeEntry {
