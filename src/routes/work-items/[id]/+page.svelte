@@ -37,67 +37,130 @@
 		const step1 = input.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
 		return step1.charAt(0).toUpperCase() + step1.slice(1);
 	}
+
+	let formElement: HTMLFormElement;
+	let isSaving = $state(false);
+
+	function autoSave() {
+		if (formElement) {
+			isSaving = true;
+			formElement.requestSubmit();
+		}
+	}
 </script>
 
 <ContentHeader>{data?.workItem?.type}</ContentHeader>
 
-<form method="post" action="?/update" use:enhance>
+<form
+	method="post"
+	action="?/update"
+	use:enhance={() => {
+		return async ({ update }) => {
+			await update({ reset: false });
+			isSaving = false;
+		};
+	}}
+	bind:this={formElement}
+>
 	<input type="hidden" name="id" value={data.workItem?.id} />
 	<input type="hidden" name="clientId" value={data.workItem?.clientId} />
 	{#if data.featureFlags.retypeWorkItems}
-		<Select name="type" label="Work Item Type" required>
+		<Select name="type" label="Work Item Type" required onchange={autoSave}>
 			<option value="">Select Work Item Type</option>
 			{#each Object.keys(data.workItemTypes) as workItemType (workItemType)}
 				<option value={workItemType}>{workItemType}</option>
 			{/each}
 		</Select>
-		{:else}
+	{:else}
 		<input type="hidden" name="type" value={data.workItem?.type} />
 	{/if}
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-		<Input type="text" name="name" label="Name" value={data.workItem?.name}>Name</Input>
-	{#if data.featureFlags.reparentWorkItems}
-	<div>
-		<Input type="text" name="parentId" label="Parent ID" value={data.workItem?.parentId}>Parent</Input>
-	</div>
-	{:else}
-		<input type="hidden" name="parentId" value={data.workItem?.parentId} />
-	{/if}
-	<div>
-		<Select name="status" label="Status">
-			{#each data.workItemStatuses as workItemStatus (workItemStatus)}
-				<option value={workItemStatus} selected={data.workItem?.status === workItemStatus}
-					>{workItemStatus}</option
+		<Input
+			type="text"
+			name="name"
+			label="Name"
+			value={data.workItem?.name}
+			onblur={autoSave}
+		>
+			Name
+		</Input>
+		{#if data.featureFlags.reparentWorkItems}
+			<div>
+				<Input
+					type="text"
+					name="parentId"
+					label="Parent ID"
+					value={data.workItem?.parentId}
+					onblur={autoSave}
 				>
-			{/each}
-		</Select>
-	</div>
-	<div>
-		<TextArea name="description" value={data.workItem.description}>Description</TextArea>
-	</div>
+					Parent
+				</Input>
+			</div>
+		{:else}
+			<input type="hidden" name="parentId" value={data.workItem?.parentId} />
+		{/if}
+		<div>
+			<Select name="status" label="Status" onchange={autoSave}>
+				{#each data.workItemStatuses as workItemStatus (workItemStatus)}
+					<option value={workItemStatus} selected={data.workItem?.status === workItemStatus}
+						>{workItemStatus}</option
+					>
+				{/each}
+			</Select>
+		</div>
+		<div>
+			<TextArea
+				name="description"
+				value={data.workItem.description}
+				onblur={autoSave}
+			>
+				Description
+			</TextArea>
+		</div>
 		{#each data.workItemTypes[data.workItem?.type]?.customFields as field (field.name)}
 			<div>
 				{#if field.values}
-					<Select name={`cf_${field.name}`} label={camelCaseToTitleCaseWithSpaces(field.name)}>
+					<Select
+						name={`cf_${field.name}`}
+						label={camelCaseToTitleCaseWithSpaces(field.name)}
+						onchange={autoSave}
+					>
 						<option value=""></option>
 						{#each field.values as value (value)}
-							<option value={value} selected={data.workItem.customFields[field.name] === String(value)}>{value}</option>
-							{/each}
+							<option
+								value={value}
+								selected={data.workItem.customFields[field.name] === String(value)}
+								>{value}</option
+							>
+						{/each}
 					</Select>
-					{:else if field.multiline}
-					<TextArea name={`cf_${field.name}`} value={data.workItem.customFields[field.name]}>{camelCaseToTitleCaseWithSpaces(field.name)} </TextArea>
-					{:else}
-				<Input type={field.type} name={`cf_${field.name}`} value={data.workItem.customFields[field.name]}>
-					{camelCaseToTitleCaseWithSpaces(field.name)}
-				</Input>
-					{/if}
+				{:else if field.multiline}
+     <TextArea
+                                               name={`cf_${field.name}`}
+                                               value={data.workItem.customFields[field.name]}
+                                               onblur={autoSave}
+                                       >
+						{camelCaseToTitleCaseWithSpaces(field.name)}
+					</TextArea>
+				{:else}
+     <Input
+                                               type={field.type}
+                                               name={`cf_${field.name}`}
+                                               value={data.workItem.customFields[field.name]}
+                                               onblur={autoSave}
+                                       >
+						{camelCaseToTitleCaseWithSpaces(field.name)}
+					</Input>
+				{/if}
 			</div>
 		{/each}
 	</div>
-	<div>
-		<Button>Update</Button>
+	<div class="flex items-center">
+		{#if isSaving}
+			<span class="text-gray-500 text-sm italic">Saving...</span>
+		{/if}
 		<A
-			class="ms-3"
+			class={isSaving ? 'ms-3' : ''}
 			href={data.workItem?.parentId
 				? `/work-items/${data.workItem?.parentId}`
 				: `/work-items?clientId=${data.workItem.clientId}`}>Go to Parent</A
