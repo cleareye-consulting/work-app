@@ -1,5 +1,4 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
-import { GEMINI_API_KEY } from '$env/static/private';
 import type { WorkItem, WorkItemChangeEvent, WorkItemDocument } from '../../types';
 
 export async function generateDocumentSummary(content: string) {
@@ -50,7 +49,7 @@ async function openaiSummary(content: string) {
 }
 
 async function geminiSummary(content: string) {
-	const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+	const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 	const prompt = `
 						You are a file and code content labeler.
 						Your only job is to generate a concise, user-friendly, and general-purpose label or title 
@@ -150,7 +149,7 @@ function renderWorkItemInput(input: ClientSummaryWorkItemInput, depth = 0): stri
 }
 
 export async function generateClientSummary(input: ClientSummaryInput) {
-	const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+	const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 	const workItemsText = input.workItems.map((wi) => renderWorkItemInput(wi)).join('\n---\n');
 
