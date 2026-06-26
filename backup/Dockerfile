@@ -1,6 +1,6 @@
-FROM alpine:3.20
+FROM postgres:17-alpine
 
-RUN apk add --no-cache postgresql-client aws-cli
+RUN apk add --no-cache aws-cli
 
 COPY backup.sh /backup.sh
 COPY crontab /etc/crontabs/root
