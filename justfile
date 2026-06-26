@@ -36,7 +36,4 @@ db-list:
         --profile cleareye-workapp-account --region us-east-1
 
 db-restore file:
-    docker compose exec -T backup sh -c \
-        "aws s3 cp s3://cleareye-workapp-db-backup/backups/{{file}} - \
-            --profile cleareye-workapp-account --region us-east-1 --no-progress \
-            | gunzip | psql \$DATABASE_URL"
+    docker compose exec -T backup /restore.sh {{file}}
