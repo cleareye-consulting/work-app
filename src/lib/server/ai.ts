@@ -70,7 +70,7 @@ async function geminiSummary(content: string) {
 
 	try {
 		const response = await ai.models.generateContent({
-			model: 'gemini-2.5-flash',
+			model: 'gemini-3.5-flash',
 			contents: [{ role: 'user', parts: [{ text: prompt }] }],
 			config: {
 				// Safety settings help manage the model's output
@@ -170,7 +170,7 @@ Write an updated client-facing summary that:
 
 	try {
 		const response = await ai.models.generateContent({
-			model: 'gemini-3-flash-preview',
+			model: 'gemini-3.5-flash',
 			contents: [{ role: 'user', parts: [{ text: prompt }] }],
 			config: {
 				temperature: 0.7,
