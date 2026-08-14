@@ -1,13 +1,16 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
-import type { WorkItem, WorkItemChangeEvent, WorkItemDocument } from '../../types';
+import type { WorkItem, WorkItemChangeEvent } from '../../types';
 
 export async function generateDocumentSummary(content: string) {
 	const provider = process.env.AI_PROVIDER || 'gemini';
 
-	switch(provider) {
-		case 'anthropic': return anthropicSummary(content);
-		case 'openai': return openaiSummary(content);
-		case 'gemini': return geminiSummary(content);
+	switch (provider) {
+		case 'anthropic':
+			return anthropicSummary(content);
+		case 'openai':
+			return openaiSummary(content);
+		case 'gemini':
+			return geminiSummary(content);
 	}
 }
 
@@ -22,10 +25,12 @@ async function anthropicSummary(content: string) {
 		body: JSON.stringify({
 			model: 'claude-sonnet-4-5-20250929',
 			max_tokens: 150,
-			messages: [{
-				role: 'user',
-				content: `Summarize this document in 1-2 sentences:\n\n${content}`
-			}]
+			messages: [
+				{
+					role: 'user',
+					content: `Summarize this document in 1-2 sentences:\n\n${content}`
+				}
+			]
 		})
 	});
 
@@ -37,7 +42,7 @@ async function openaiSummary(content: string) {
 	const response = await fetch('https://api.openai.com/v1/chat/completions', {
 		method: 'POST',
 		headers: {
-			'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+			Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
 			'Content-Type': 'application/json'
 		},
 		body: JSON.stringify({
@@ -77,17 +82,20 @@ async function geminiSummary(content: string) {
 				safetySettings: [
 					{
 						category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-						threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-					},
+						threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+					}
 				],
 				// A lower temperature for less creative, more factual summarization
 				temperature: 0.2,
 				// Limit the maximum number of tokens for the summary output
-				maxOutputTokens: 1024,
-			},
+				maxOutputTokens: 1024
+			}
 		});
 
-		const responseText = response.text;
+		const responseText = (response.candidates?.[0]?.content?.parts ?? [])
+			.filter((part) => typeof part.text === 'string' && !part.thought)
+			.map((part) => part.text)
+			.join('');
 		if (!responseText) {
 			console.error('No text found in the response.', response);
 			return '';
@@ -108,6 +116,139 @@ export interface ClientSummaryWorkItemInput {
 export interface ClientSummaryInput {
 	lastSummary: string | null;
 	workItems: ClientSummaryWorkItemInput[];
+}
+
+type AiProvider = 'anthropic' | 'openai' | 'gemini';
+
+interface TextGenerationResult {
+	text: string;
+	stopReason: 'complete' | 'length' | 'blocked' | 'unknown';
+}
+
+const CLIENT_SUMMARY_INITIAL_MAX_TOKENS = 4096;
+const CLIENT_SUMMARY_RETRY_MAX_TOKENS = 8192;
+
+function getAiProvider(): AiProvider {
+	const provider = process.env.AI_PROVIDER || 'gemini';
+	if (provider === 'anthropic' || provider === 'openai' || provider === 'gemini') {
+		return provider;
+	}
+	throw new Error(`Unsupported AI provider: ${provider}`);
+}
+
+async function generateText(
+	provider: AiProvider,
+	prompt: string,
+	maxOutputTokens: number
+): Promise<TextGenerationResult> {
+	switch (provider) {
+		case 'anthropic':
+			return generateAnthropicText(prompt, maxOutputTokens);
+		case 'openai':
+			return generateOpenAiText(prompt, maxOutputTokens);
+		case 'gemini':
+			return generateGeminiText(prompt, maxOutputTokens);
+	}
+}
+
+async function generateAnthropicText(
+	prompt: string,
+	maxOutputTokens: number
+): Promise<TextGenerationResult> {
+	const response = await fetch('https://api.anthropic.com/v1/messages', {
+		method: 'POST',
+		headers: {
+			'x-api-key': process.env.ANTHROPIC_API_KEY!,
+			'anthropic-version': '2023-06-01',
+			'content-type': 'application/json'
+		},
+		body: JSON.stringify({
+			model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+			max_tokens: maxOutputTokens,
+			messages: [{ role: 'user', content: prompt }]
+		})
+	});
+
+	if (!response.ok) {
+		throw new Error(`Anthropic request failed with status ${response.status}`);
+	}
+
+	const data = await response.json();
+	const text = (data.content ?? [])
+		.filter((part: { type?: string; text?: string }) => part.type === 'text')
+		.map((part: { text: string }) => part.text)
+		.join('');
+	return {
+		text,
+		stopReason:
+			data.stop_reason === 'max_tokens' ? 'length' : data.stop_reason ? 'complete' : 'unknown'
+	};
+}
+
+async function generateOpenAiText(
+	prompt: string,
+	maxOutputTokens: number
+): Promise<TextGenerationResult> {
+	const response = await fetch('https://api.openai.com/v1/chat/completions', {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			model: process.env.OPENAI_MODEL || 'gpt-4',
+			max_tokens: maxOutputTokens,
+			messages: [{ role: 'user', content: prompt }]
+		})
+	});
+
+	if (!response.ok) {
+		throw new Error(`OpenAI request failed with status ${response.status}`);
+	}
+
+	const data = await response.json();
+	const choice = data.choices?.[0];
+	return {
+		text: choice?.message?.content ?? '',
+		stopReason:
+			choice?.finish_reason === 'length' ? 'length' : choice?.finish_reason ? 'complete' : 'unknown'
+	};
+}
+
+async function generateGeminiText(
+	prompt: string,
+	maxOutputTokens: number
+): Promise<TextGenerationResult> {
+	const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+	const response = await ai.models.generateContent({
+		model: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
+		contents: [{ role: 'user', parts: [{ text: prompt }] }],
+		config: {
+			temperature: 0.7,
+			maxOutputTokens
+		}
+	});
+
+	const candidate = response.candidates?.[0];
+	const finishReason = candidate?.finishReason;
+	const text = (candidate?.content?.parts ?? [])
+		.filter((part) => typeof part.text === 'string' && !part.thought)
+		.map((part) => part.text)
+		.join('');
+
+	return {
+		text,
+		stopReason:
+			finishReason === 'MAX_TOKENS'
+				? 'length'
+				: finishReason === 'SAFETY' ||
+					  finishReason === 'BLOCKLIST' ||
+					  finishReason === 'PROHIBITED_CONTENT'
+					? 'blocked'
+					: finishReason
+						? 'complete'
+						: 'unknown'
+	};
 }
 
 function renderWorkItemInput(input: ClientSummaryWorkItemInput, depth = 0): string {
@@ -149,8 +290,6 @@ function renderWorkItemInput(input: ClientSummaryWorkItemInput, depth = 0): stri
 }
 
 export async function generateClientSummary(input: ClientSummaryInput) {
-	const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 	const workItemsText = input.workItems.map((wi) => renderWorkItemInput(wi)).join('\n---\n');
 
 	const prompt = `You are preparing a weekly progress summary for a client.
@@ -167,21 +306,30 @@ Write an updated client-facing summary that:
 - Is written in plain, direct language — professional but conversational, as if giving a colleague a straightforward update. Avoid business jargon and filler phrases. Focus on what was done, what it means, and what's next.
 `;
 
-
 	try {
-		const response = await ai.models.generateContent({
-			model: 'gemini-3.5-flash',
-			contents: [{ role: 'user', parts: [{ text: prompt }] }],
-			config: {
-				temperature: 0.7,
-				maxOutputTokens: 2048
-			}
-		});
+		const provider = getAiProvider();
+		let result = await generateText(provider, prompt, CLIENT_SUMMARY_INITIAL_MAX_TOKENS);
 
-		const responseText = response.text;
-		return responseText ? responseText.trim() : '';
+		if (result.stopReason === 'length') {
+			console.warn(
+				`AI client summary reached the output limit; retrying with ${CLIENT_SUMMARY_RETRY_MAX_TOKENS} tokens.`
+			);
+			result = await generateText(provider, prompt, CLIENT_SUMMARY_RETRY_MAX_TOKENS);
+		}
+
+		if (result.stopReason === 'length') {
+			throw new Error('AI client summary reached the output limit after retrying.');
+		}
+		if (result.stopReason === 'blocked') {
+			throw new Error('AI client summary was blocked by the provider.');
+		}
+		if (!result.text.trim()) {
+			throw new Error('AI provider returned an empty client summary.');
+		}
+
+		return result.text.trim();
 	} catch (error) {
-		console.error('Error generating client summary with Gemini:', error);
+		console.error('Error generating AI client summary:', error);
 		throw new Error('Failed to generate AI client summary.');
 	}
 }
