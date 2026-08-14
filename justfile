@@ -1,8 +1,45 @@
 default:
     @just --list
 
-start:
+start: _ensure-docker
     docker compose up --build -d
+
+[private]
+_ensure-docker:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    docker_is_ready() {
+        timeout 5 docker info >/dev/null 2>&1
+    }
+
+    if docker_is_ready; then
+        exit 0
+    fi
+
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        echo "Docker is not running; start it and try again." >&2
+        exit 1
+    fi
+
+    echo "Starting Docker Desktop..."
+    if ! open -gj -a Docker; then
+        echo "Could not launch Docker Desktop." >&2
+        exit 1
+    fi
+
+    deadline=$((SECONDS + 120))
+
+    while (( SECONDS < deadline )); do
+        if docker_is_ready; then
+            echo "Docker is ready."
+            exit 0
+        fi
+        sleep 2
+    done
+
+    echo "Docker did not become ready within 2 minutes." >&2
+    exit 1
 
 stop:
     docker compose down
