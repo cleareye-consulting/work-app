@@ -1,5 +1,11 @@
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
-import type { WorkItem, WorkItemChangeEvent, WorkItemDocument } from '../../types';
+import {
+	FinishReason,
+	GoogleGenAI,
+	HarmCategory,
+	HarmBlockThreshold,
+	type Content
+} from '@google/genai';
+import type { WorkItem, WorkItemChangeEvent } from '../../types';
 
 export async function generateDocumentSummary(content: string) {
 	const provider = process.env.AI_PROVIDER || 'gemini';
@@ -169,17 +175,38 @@ Write an updated client-facing summary that:
 
 
 	try {
-		const response = await ai.models.generateContent({
-			model: 'gemini-3.5-flash',
-			contents: [{ role: 'user', parts: [{ text: prompt }] }],
-			config: {
-				temperature: 0.7,
-				maxOutputTokens: 2048
-			}
-		});
+		const contents: Content[] = [{ role: 'user', parts: [{ text: prompt }] }];
+		let generatedContent = '';
 
-		const responseText = response.text;
-		return responseText ? responseText.trim() : '';
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const response = await ai.models.generateContent({
+				model: 'gemini-3.5-flash',
+				contents,
+				config: {
+					temperature: 0.7,
+					maxOutputTokens: 8192
+				}
+			});
+
+			const responseText = response.text ?? '';
+			generatedContent += responseText;
+
+			const candidate = response.candidates?.[0];
+			if (candidate?.finishReason !== FinishReason.MAX_TOKENS) {
+				return generatedContent.trim();
+			}
+
+			if (!responseText || !candidate.content) {
+				throw new Error('Gemini reached its output limit without continuation content.');
+			}
+
+			contents.push(candidate.content, {
+				role: 'user',
+				parts: [{ text: 'Continue exactly where you stopped. Do not repeat any of the summary.' }]
+			});
+		}
+
+		throw new Error('Gemini repeatedly reached its output limit.');
 	} catch (error) {
 		console.error('Error generating client summary with Gemini:', error);
 		throw new Error('Failed to generate AI client summary.');
