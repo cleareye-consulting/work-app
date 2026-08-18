@@ -1,4 +1,10 @@
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
+import {
+	FinishReason,
+	GoogleGenAI,
+	HarmCategory,
+	HarmBlockThreshold,
+	type Content
+} from '@google/genai';
 import type { WorkItem, WorkItemChangeEvent } from '../../types';
 
 export async function generateDocumentSummary(content: string) {
@@ -307,27 +313,38 @@ Write an updated client-facing summary that:
 `;
 
 	try {
-		const provider = getAiProvider();
-		let result = await generateText(provider, prompt, CLIENT_SUMMARY_INITIAL_MAX_TOKENS);
+		const contents: Content[] = [{ role: 'user', parts: [{ text: prompt }] }];
+		let generatedContent = '';
 
-		if (result.stopReason === 'length') {
-			console.warn(
-				`AI client summary reached the output limit; retrying with ${CLIENT_SUMMARY_RETRY_MAX_TOKENS} tokens.`
-			);
-			result = await generateText(provider, prompt, CLIENT_SUMMARY_RETRY_MAX_TOKENS);
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const response = await ai.models.generateContent({
+				model: 'gemini-3.5-flash',
+				contents,
+				config: {
+					temperature: 0.7,
+					maxOutputTokens: 8192
+				}
+			});
+
+			const responseText = response.text ?? '';
+			generatedContent += responseText;
+
+			const candidate = response.candidates?.[0];
+			if (candidate?.finishReason !== FinishReason.MAX_TOKENS) {
+				return generatedContent.trim();
+			}
+
+			if (!responseText || !candidate.content) {
+				throw new Error('Gemini reached its output limit without continuation content.');
+			}
+
+			contents.push(candidate.content, {
+				role: 'user',
+				parts: [{ text: 'Continue exactly where you stopped. Do not repeat any of the summary.' }]
+			});
 		}
 
-		if (result.stopReason === 'length') {
-			throw new Error('AI client summary reached the output limit after retrying.');
-		}
-		if (result.stopReason === 'blocked') {
-			throw new Error('AI client summary was blocked by the provider.');
-		}
-		if (!result.text.trim()) {
-			throw new Error('AI provider returned an empty client summary.');
-		}
-
-		return result.text.trim();
+		throw new Error('Gemini repeatedly reached its output limit.');
 	} catch (error) {
 		console.error('Error generating AI client summary:', error);
 		throw new Error('Failed to generate AI client summary.');
