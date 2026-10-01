@@ -116,12 +116,14 @@ async function geminiSummary(content: string) {
 export interface ClientSummaryWorkItemInput {
 	workItem: WorkItem;
 	events: WorkItemChangeEvent[];
-	parent: ClientSummaryWorkItemInput | null;
+	directHours: number;
+	children: ClientSummaryWorkItemInput[];
 }
 
 export interface ClientSummaryInput {
-	lastSummary: string | null;
-	workItems: ClientSummaryWorkItemInput[];
+	periodLabel: string;
+	activityProjects: ClientSummaryWorkItemInput[];
+	noActivityProjectNames: string[];
 }
 
 type AiProvider = 'anthropic' | 'openai' | 'gemini';
@@ -131,8 +133,7 @@ interface TextGenerationResult {
 	stopReason: 'complete' | 'length' | 'blocked' | 'unknown';
 }
 
-const CLIENT_SUMMARY_INITIAL_MAX_TOKENS = 4096;
-const CLIENT_SUMMARY_RETRY_MAX_TOKENS = 8192;
+const CLIENT_SUMMARY_MAX_OUTPUT_TOKENS = 16384;
 
 function getAiProvider(): AiProvider {
 	const provider = process.env.AI_PROVIDER || 'gemini';
@@ -273,10 +274,14 @@ function renderWorkItemInput(input: ClientSummaryWorkItemInput, depth = 0): stri
 	}
 
 	if (events.length) {
-		out += `${indent}Changes this period:\n`;
+		out += `${indent}Activity this period:\n`;
 		for (const event of events) {
-			out += `${indent}  - ${event.summaryOfChanges}\n`;
+			out += `${indent}  - ${event.createdAt.toISOString()}: ${event.summaryOfChanges}\n`;
 		}
+	}
+
+	if (input.directHours > 0) {
+		out += `${indent}Time in period: ${input.directHours.toFixed(2)} hours\n`;
 	}
 
 	if (workItem.documents?.length) {
@@ -287,30 +292,43 @@ function renderWorkItemInput(input: ClientSummaryWorkItemInput, depth = 0): stri
 		}
 	}
 
-	if (input.parent) {
-		out += `${indent}Parent context:\n`;
-		out += renderWorkItemInput(input.parent, depth + 1);
+	if (input.children.length) {
+		out += `${indent}Children:\n`;
+		for (const child of input.children) {
+			out += renderWorkItemInput(child, depth + 1);
+		}
 	}
 
 	return out;
 }
 
 export async function generateClientSummary(input: ClientSummaryInput) {
-	const workItemsText = input.workItems.map((wi) => renderWorkItemInput(wi)).join('\n---\n');
+	const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+	const activityProjectsText = input.activityProjects.length
+		? input.activityProjects.map((project) => renderWorkItemInput(project)).join('\n---\n')
+		: 'None.';
+	const noActivityProjectsText = input.noActivityProjectNames.length
+		? input.noActivityProjectNames.map((name) => `- ${name}`).join('\n')
+		: 'None.';
 
-	const prompt = `You are preparing a weekly progress summary for a client.
-${input.lastSummary ? `## Previous Summary\n${input.lastSummary}\n` : '## Previous Summary\nThis is the first summary for this client.\n'}
-## Work Items With Activity This Period
-${workItemsText}
+	// Keep this instruction prefix static. The selected period and project data belong later in
+	// the request, which is friendlier to Gemini's prefix-based implicit context caching.
+	const prompt = `You write concise client updates from supplied project data.
+Use only the supplied data. Organize the update by project. Describe completed work, current
+work, blockers, and decisions only when directly supported by the data. Include time totals
+only when they help explain effort. Include a brief \"No activity this period\" list from the
+supplied projects. Do not restate unchanged background, infer progress, invent next steps,
+describe a project as active merely because it exists, use an executive-summary section, or
+use filler such as \"this period was marked by.\" Use direct, client-friendly Markdown.
 
-## Instructions
-Write an updated client-facing summary that:
-- Reflects the current state of all active work
-- Highlights what changed or progressed this period
-- Notes any blockers, pending items, or open questions from the notes
-- Incorporates relevant context from parent items
-- Is written in plain, direct language — professional but conversational, as if giving a colleague a straightforward update. Avoid business jargon and filler phrases. Focus on what was done, what it means, and what's next.
-`;
+## Project data with activity
+${activityProjectsText}
+
+## Projects with no activity this period
+${noActivityProjectsText}
+
+## Request
+Write the client update for ${input.periodLabel}. If there was no activity, say so plainly.`;
 
 	try {
 		const contents: Content[] = [{ role: 'user', parts: [{ text: prompt }] }];
@@ -318,11 +336,11 @@ Write an updated client-facing summary that:
 
 		for (let attempt = 0; attempt < 3; attempt++) {
 			const response = await ai.models.generateContent({
-				model: 'gemini-3.5-flash',
+				model: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
 				contents,
 				config: {
 					temperature: 0.7,
-					maxOutputTokens: 8192
+					maxOutputTokens: CLIENT_SUMMARY_MAX_OUTPUT_TOKENS
 				}
 			});
 
