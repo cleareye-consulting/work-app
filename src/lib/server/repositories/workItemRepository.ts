@@ -265,3 +265,80 @@ export async function getEventsForRange(
 		summaryOfChanges: row.summary_of_changes
 	}));
 }
+
+/** Returns every work item and work-item document for a client as a hierarchy. */
+export async function getWorkItemTreesForClient(clientId: number): Promise<WorkItem[]> {
+	const workItemResult = await query<{
+		id: number;
+		name: string;
+		work_item_type: string;
+		status: string;
+		client_id: number;
+		parent_id: number | null;
+		description: string | null;
+		custom_fields: Record<string, unknown>;
+		client_name: string;
+	}>(
+		`SELECT w.*, c.name AS client_name
+		 FROM work_items w
+		 JOIN clients c ON c.id = w.client_id
+		 WHERE w.client_id = $1
+		 ORDER BY w.id`,
+		[clientId]
+	);
+
+	const documentResult = await query<{
+		id: number;
+		work_item_id: number;
+		name: string;
+		content_type: string;
+		content: string;
+		summary: string | null;
+	}>(
+		`SELECT wid.id, wid.work_item_id, wid.name, wid.content_type, wid.content, wid.summary
+		 FROM work_item_documents wid
+		 JOIN work_items w ON w.id = wid.work_item_id
+		 WHERE w.client_id = $1
+		 ORDER BY wid.id`,
+		[clientId]
+	);
+
+	const itemsById = new Map<number, WorkItem>();
+	for (const row of workItemResult.rows) {
+		itemsById.set(row.id, {
+			id: row.id,
+			name: row.name,
+			type: row.work_item_type,
+			status: row.status,
+			clientId: row.client_id,
+			clientName: row.client_name,
+			parentId: row.parent_id ?? undefined,
+			description: row.description ?? undefined,
+			customFields: row.custom_fields || {},
+			documents: [],
+			children: []
+		});
+	}
+
+	for (const row of documentResult.rows) {
+		itemsById.get(row.work_item_id)?.documents?.push({
+			id: row.id,
+			name: row.name,
+			type: row.content_type,
+			content: row.content,
+			workItemId: row.work_item_id,
+			summary: row.summary ?? undefined
+		});
+	}
+
+	const roots: WorkItem[] = [];
+	for (const item of itemsById.values()) {
+		if (item.parentId && itemsById.has(item.parentId)) {
+			itemsById.get(item.parentId)!.children!.push(item);
+		} else {
+			roots.push(item);
+		}
+	}
+
+	return roots;
+}

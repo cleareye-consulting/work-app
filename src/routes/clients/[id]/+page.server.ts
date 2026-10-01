@@ -1,4 +1,4 @@
-import { addClientSummary, getClientById, updateClient } from '$lib/server/repositories/clientRepository';
+import { getClientById, updateClient } from '$lib/server/repositories/clientRepository';
 import type { Client } from '../../../types';
 import { redirect } from '@sveltejs/kit';
 import { getTimeEntriesByClientAndRange } from '$lib/server/repositories/timeRepository';

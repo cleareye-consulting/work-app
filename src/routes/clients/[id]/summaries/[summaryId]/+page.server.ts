@@ -21,7 +21,7 @@ export const actions = {
 		const summary: ClientSummary = {
 			id: +summaryId,
 			clientId: +clientId,
-			createdAt: '', // Not needed for update
+			createdAt: new Date(), // Not needed for update
 			content
 		};
 

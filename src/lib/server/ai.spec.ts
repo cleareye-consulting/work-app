@@ -42,8 +42,9 @@ describe('generateClientSummary', () => {
 			});
 
 		const result = await generateClientSummary({
-			lastSummary: null,
-			workItems: []
+			periodLabel: 'this week so far',
+			activityProjects: [],
+			noActivityProjectNames: []
 		});
 
 		expect(result).toBe('Work remains in progress.');
@@ -51,7 +52,7 @@ describe('generateClientSummary', () => {
 		expect(generateContent).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
-				config: expect.objectContaining({ maxOutputTokens: 8192 })
+				config: expect.objectContaining({ maxOutputTokens: 16384 })
 			})
 		);
 		expect(generateContent).toHaveBeenNthCalledWith(

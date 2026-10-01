@@ -29,6 +29,38 @@ export async function getTimeEntriesByClientAndRange(
 	}));
 }
 
+/** Gets completed and currently-running spans that overlap the supplied half-open range. */
+export async function getTimeEntriesOverlappingClientRange(
+	clientId: number,
+	startDate: Date,
+	endDate: Date
+): Promise<TimeEntry[]> {
+	const res = await query<{
+		id: number;
+		work_item_id: number;
+		client_id: number;
+		start_time: Date;
+		end_time: Date | null;
+	}>(
+		`SELECT te.id, te.work_item_id, wi.client_id, te.start_time, te.end_time
+		 FROM time_entries te
+		 JOIN work_items wi ON wi.id = te.work_item_id
+		 WHERE wi.client_id = $1
+		   AND te.start_time < $3
+		   AND COALESCE(te.end_time, NOW()) > $2
+		 ORDER BY te.start_time`,
+		[clientId, startDate, endDate]
+	);
+
+	return res.rows.map((row) => ({
+		id: row.id,
+		workItemId: row.work_item_id,
+		clientId: row.client_id,
+		startTime: row.start_time.toISOString(),
+		endTime: row.end_time?.toISOString()
+	}));
+}
+
 export async function getTimeTrackingStatus(): Promise<TimeTrackingStatus> {
 	// In Postgres, we look for an entry without an end_time
 	const res = await query<{

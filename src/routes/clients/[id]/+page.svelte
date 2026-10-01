@@ -7,6 +7,15 @@ import Input from '../../../components/Input.svelte';
 import { onMount } from 'svelte';
 let {data} = $props()
 
+interface TimeSummaryNode {
+	workItemId: number;
+	workItemName: string;
+	directHours: number;
+	totalHours: number;
+	parentId?: number;
+	children: TimeSummaryNode[];
+}
+
 let form: HTMLFormElement;
 
 onMount(() => {
@@ -48,20 +57,9 @@ function handlePeriodChange() {
 </div>
 
 <hr class="my-4" />
-<h3 class="text-2xl mb-4">Summaries</h3>
-<div class="space-y-4">
- {#each data.client.summaries ?? [] as summary (summary.id)}
-	<div class="mb-2">
-		<A href="/clients/{data.client.id}/summaries/{summary.id}">
-			{new Date(summary.createdAt).toLocaleDateString()} {new Date(summary.createdAt).toLocaleTimeString()}
-		</A>
-	</div>
-{:else}
-	<div class="text-gray-500 italic">No summaries yet.</div>
-{/each}
-</div>
+<h3 class="text-2xl mb-4">Client Update</h3>
 <div class="mt-4">
-	<A href="/clients/{data.client.id}/summaries/new">New Summary</A>
+	<A href="/clients/{data.client.id}/summaries/new">Generate client update</A>
 </div>
 
 <hr class="my-4" />
@@ -116,7 +114,7 @@ function handlePeriodChange() {
 	{/if}
 </div>
 
-{#snippet timeRow(node, depth)}
+{#snippet timeRow(node: TimeSummaryNode, depth: number)}
 	<div class="grid grid-cols-4 py-2 px-4 hover:bg-gray-50 items-center">
 		<div class="col-span-3 truncate" style="padding-left: {depth * 1.5}rem">
 			<A href="/work-items/{node.workItemId}">{node.workItemName}</A>
