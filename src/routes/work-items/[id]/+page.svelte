@@ -9,6 +9,7 @@
 	import TD from '../../../components/TD.svelte';
 	import TextArea from '../../../components/TextArea.svelte';
 	import Input from '../../../components/Input.svelte';
+	import { deserialize } from '$app/forms';
 	const { data } = $props();
 	const childItemsSorted = $derived(
 		data.workItem.children?.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)) ?? []
@@ -40,11 +41,26 @@
 
 	let formElement: HTMLFormElement;
 	let isSaving = $state(false);
+	let hierarchyJson = $state('');
+	let isLoadingJson = $state(false);
 
 	function autoSave() {
 		if (formElement) {
 			isSaving = true;
 			formElement.requestSubmit();
+		}
+	}
+
+	async function viewHierarchyJson() {
+		isLoadingJson = true;
+		try {
+			const response = await fetch('?/viewHierarchyJson', { method: 'POST', body: new FormData() });
+			const result = deserialize(await response.text());
+			if (result.type === 'success' && result.data && typeof result.data.hierarchyJson === 'string') {
+				hierarchyJson = result.data.hierarchyJson;
+			}
+		} finally {
+			isLoadingJson = false;
 		}
 	}
 </script>
@@ -167,6 +183,17 @@
 		>
 	</div>
 </form>
+
+{#if !data.workItem.parentId}
+	<div class="mt-4">
+		<Button type="button" onclick={viewHierarchyJson} disabled={isLoadingJson}>
+			{isLoadingJson ? 'Building JSON...' : 'View Hierarchy JSON'}
+		</Button>
+		{#if hierarchyJson}
+			<pre class="mt-2 max-h-[32rem] overflow-auto rounded border border-gray-300 bg-gray-50 p-4 text-sm">{hierarchyJson}</pre>
+		{/if}
+	</div>
+{/if}
 
 <div class="mt-4">
 	{#if isTrackingThisItem}

@@ -6,89 +6,9 @@ import {
 import { getTimeEntriesOverlappingClientRange } from '$lib/server/repositories/timeRepository';
 import { generateClientSummary, type ClientSummaryWorkItemInput } from '$lib/server/ai';
 import { getActiveStatuses } from '$lib/server/utils';
+import { formatPeriodLabel, getReportPeriodRange, reportPeriods, type ReportPeriod } from '$lib/server/reportingPeriods';
 import type { WorkItem, WorkItemChangeEvent } from '../../../../../types';
 import { fail } from '@sveltejs/kit';
-
-const REPORT_TIME_ZONE = process.env.REPORT_TIME_ZONE || 'America/New_York';
-const PERIODS = ['month-to-date', 'last-calendar-month', 'week-to-date', 'last-week'] as const;
-type Period = (typeof PERIODS)[number];
-
-function zonedParts(date: Date) {
-	const parts = new Intl.DateTimeFormat('en-US', {
-		timeZone: REPORT_TIME_ZONE,
-		year: 'numeric',
-		month: 'numeric',
-		day: 'numeric',
-		weekday: 'short'
-	}).formatToParts(date);
-	const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)!.value;
-	return { year: +value('year'), month: +value('month'), day: +value('day'), weekday: value('weekday') };
-}
-
-function timeZoneOffset(date: Date) {
-	const parts = new Intl.DateTimeFormat('en-US', {
-		timeZone: REPORT_TIME_ZONE,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		hourCycle: 'h23'
-	}).formatToParts(date);
-	const value = (type: Intl.DateTimeFormatPartTypes) => +parts.find((part) => part.type === type)!.value;
-	return Date.UTC(value('year'), value('month') - 1, value('day'), value('hour'), value('minute'), value('second')) - date.getTime();
-}
-
-function zonedMidnight(year: number, month: number, day: number) {
-	const localMidnight = Date.UTC(year, month - 1, day);
-	let result = new Date(localMidnight - timeZoneOffset(new Date(localMidnight)));
-	result = new Date(localMidnight - timeZoneOffset(result));
-	return result;
-}
-
-function dateForLocalDay(year: number, month: number, day: number) {
-	const date = new Date(Date.UTC(year, month - 1, day));
-	return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
-}
-
-function formatPeriodLabel(description: string, start: Date, end: Date, endIsExclusive: boolean) {
-	const formatter = new Intl.DateTimeFormat('en-US', {
-		timeZone: REPORT_TIME_ZONE,
-		month: 'short',
-		day: 'numeric',
-		year: 'numeric'
-	});
-	const displayedEnd = endIsExclusive ? new Date(end.getTime() - 1) : end;
-	return `${description} (${formatter.format(start)}–${formatter.format(displayedEnd)})`;
-}
-
-function getPeriodRange(period: Period, now = new Date()) {
-	const local = zonedParts(now);
-	const mondayOffset = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[local.weekday] ?? 0;
-	const monday = dateForLocalDay(local.year, local.month, local.day - mondayOffset);
-	const monthStart = zonedMidnight(local.year, local.month, 1);
-
-	switch (period) {
-		case 'last-calendar-month': {
-			const lastMonth = dateForLocalDay(local.year, local.month - 1, 1);
-			return { start: zonedMidnight(lastMonth.year, lastMonth.month, 1), end: monthStart, description: 'last calendar month', endIsExclusive: true };
-		}
-		case 'week-to-date':
-			return { start: zonedMidnight(monday.year, monday.month, monday.day), end: now, description: 'this week so far', endIsExclusive: false };
-		case 'last-week': {
-			const lastMonday = dateForLocalDay(monday.year, monday.month, monday.day - 7);
-			return {
-				start: zonedMidnight(lastMonday.year, lastMonday.month, lastMonday.day),
-				end: zonedMidnight(monday.year, monday.month, monday.day),
-				description: 'last week',
-				endIsExclusive: true
-			};
-		}
-		case 'month-to-date':
-			return { start: monthStart, end: now, description: 'this month to date', endIsExclusive: false };
-	}
-}
 
 function getRootIds(roots: WorkItem[]) {
 	const rootIds = new Map<number, number>();
@@ -114,17 +34,17 @@ function buildSummaryTree(
 }
 
 export async function load({ params }) {
-	return { client: await getClientById(+params.id), timeZone: REPORT_TIME_ZONE };
+	return { client: await getClientById(+params.id) };
 }
 
 export const actions = {
 	generate: async ({ request, params }) => {
 		const formData = await request.formData();
-		const period = formData.get('period') as Period;
-		if (!PERIODS.includes(period)) return fail(400, { error: 'Choose a valid reporting period.' });
+		const period = formData.get('period') as ReportPeriod;
+		if (!reportPeriods.includes(period)) return fail(400, { error: 'Choose a valid reporting period.' });
 
 		const clientId = +params.id;
-		const range = getPeriodRange(period);
+		const range = getReportPeriodRange(period);
 		const periodLabel = formatPeriodLabel(range.description, range.start, range.end, range.endIsExclusive);
 		const [events, roots, timeEntries] = await Promise.all([
 			getEventsForRange(clientId, range.start, range.end),

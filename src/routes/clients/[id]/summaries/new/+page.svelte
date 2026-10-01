@@ -61,7 +61,7 @@
 		</Button>
 	</div>
 
-	<p class="mb-4 text-sm text-gray-500">Generated updates are not saved. Time periods use {data.timeZone}.</p>
+	<p class="mb-4 text-sm text-gray-500">Generated updates are not saved.</p>
 
 	{#if error}
 		<p class="mb-4 text-red-700">{error}</p>
