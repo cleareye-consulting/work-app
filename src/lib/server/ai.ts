@@ -10,13 +10,31 @@ import type { WorkItem, WorkItemChangeEvent } from '../../types';
 export async function generateDocumentSummary(content: string) {
 	const provider = process.env.AI_PROVIDER || 'gemini';
 
-	switch (provider) {
-		case 'anthropic':
-			return anthropicSummary(content);
-		case 'openai':
-			return openaiSummary(content);
-		case 'gemini':
-			return geminiSummary(content);
+	try {
+		let summary: string;
+
+		switch (provider) {
+			case 'anthropic':
+				summary = await anthropicSummary(content);
+				break;
+			case 'openai':
+				summary = await openaiSummary(content);
+				break;
+			case 'gemini':
+				summary = await geminiSummary(content);
+				break;
+			default:
+				throw new Error(`Unsupported AI provider: ${provider}`);
+		}
+
+		if (!summary.trim()) {
+			throw new Error('AI provider returned an empty document summary.');
+		}
+
+		return summary.trim();
+	} catch (error) {
+		console.error('Error generating document summary:', error);
+		return `Note added ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 	}
 }
 
@@ -79,38 +97,32 @@ async function geminiSummary(content: string) {
             ---
         `;
 
-	try {
-		const response = await ai.models.generateContent({
-			model: 'gemini-3.5-flash',
-			contents: [{ role: 'user', parts: [{ text: prompt }] }],
-			config: {
-				// Safety settings help manage the model's output
-				safetySettings: [
-					{
-						category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-						threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-					}
-				],
-				// A lower temperature for less creative, more factual summarization
-				temperature: 0.2,
-				// Limit the maximum number of tokens for the summary output
-				maxOutputTokens: 1024
-			}
-		});
-
-		const responseText = (response.candidates?.[0]?.content?.parts ?? [])
-			.filter((part) => typeof part.text === 'string' && !part.thought)
-			.map((part) => part.text)
-			.join('');
-		if (!responseText) {
-			console.error('No text found in the response.', response);
-			return '';
+	const response = await ai.models.generateContent({
+		model: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
+		contents: [{ role: 'user', parts: [{ text: prompt }] }],
+		config: {
+			// Safety settings help manage the model's output
+			safetySettings: [
+				{
+					category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+					threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+				}
+			],
+			// A lower temperature for less creative, more factual summarization
+			temperature: 0.2,
+			// Limit the maximum number of tokens for the summary output
+			maxOutputTokens: 1024
 		}
-		return responseText.trim();
-	} catch (error) {
-		console.error('Error generating summary with Gemini:', error);
-		throw new Error('Failed to generate AI summary.');
+	});
+
+	const responseText = (response.candidates?.[0]?.content?.parts ?? [])
+		.filter((part) => typeof part.text === 'string' && !part.thought)
+		.map((part) => part.text)
+		.join('');
+	if (!responseText) {
+		console.error('No text found in the response.', response);
 	}
+	return responseText.trim();
 }
 
 export interface ClientSummaryWorkItemInput {
