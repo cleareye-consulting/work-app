@@ -47,6 +47,15 @@ export async function updateWorkItem(item: WorkItem) {
 	if (item.status !== oldItem.status) {
 		changes.push(`Status: ${oldItem.status} → ${item.status}`);
 	}
+	if (item.type !== oldItem.type) {
+		changes.push(`Type: ${oldItem.type} → ${item.type}`);
+	}
+	if (item.parentId !== oldItem.parentId) {
+		changes.push(`Parent: ${oldItem.parentId ?? 'None'} → ${item.parentId ?? 'None'}`);
+	}
+	if (item.clientId !== oldItem.clientId) {
+		changes.push(`Client: ${oldItem.clientId} → ${item.clientId}`);
+	}
 
 	const oldFields = oldItem.customFields || {};
 	const fields = item.customFields || {};
@@ -56,25 +65,66 @@ export async function updateWorkItem(item: WorkItem) {
 			changes.push(`${key}: ${oldFields[key] ?? 'None'} → ${fields[key]}`);
 		}
 	}
+	for (const key in oldFields) {
+		if (!(key in fields)) {
+			changes.push(`${key}: ${oldFields[key]} → None`);
+		}
+	}
 
-	await query(
-		'UPDATE work_items SET name = $1, work_item_type = $2, status = $3, description = $4, parent_id = $5, custom_fields = $6, updated_at = NOW() WHERE id = $7',
-		[
-			item.name,
-			item.type,
-			item.status,
-			item.description || null,
-			item.parentId ?? null,
-			item.customFields || {},
-			item.id
-		]
-	);
-
-	if (changes.length > 0) {
-		await query(
-			'INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)',
-			[item.id, changes.join(' | ')]
+	const movingClient = item.clientId !== oldItem.clientId;
+	const client = movingClient ? await pool.connect() : null;
+	try {
+		if (client) await client.query('BEGIN');
+		const runQuery = client ? client.query.bind(client) : query;
+		await runQuery(
+			'UPDATE work_items SET name = $1, work_item_type = $2, status = $3, description = $4, parent_id = $5, custom_fields = $6, client_id = $7, updated_at = NOW() WHERE id = $8',
+			[
+				item.name,
+				item.type,
+				item.status,
+				item.description || null,
+				item.parentId ?? null,
+				item.customFields || {},
+				item.clientId,
+				item.id
+			]
 		);
+		if (client) {
+			await client.query(
+				`WITH RECURSIVE descendants AS (
+				   SELECT id, ARRAY[$1, id] AS path FROM work_items WHERE parent_id = $1
+				   UNION ALL
+				   SELECT child.id, descendants.path || child.id
+				   FROM work_items child JOIN descendants ON child.parent_id = descendants.id
+				   WHERE NOT child.id = ANY(descendants.path)
+				 ) UPDATE work_items SET client_id = $2, updated_at = NOW()
+				 WHERE id IN (SELECT id FROM descendants)`,
+				[item.id, item.clientId]
+			);
+			await client.query(
+				`WITH RECURSIVE subtree AS (
+				   SELECT id, ARRAY[id] AS path FROM work_items WHERE id = $1
+				   UNION ALL
+				   SELECT child.id, subtree.path || child.id
+				   FROM work_items child JOIN subtree ON child.parent_id = subtree.id
+				   WHERE NOT child.id = ANY(subtree.path)
+				 ) UPDATE time_entries SET client_id = $2
+				 WHERE work_item_id IN (SELECT id FROM subtree)`,
+				[item.id, item.clientId]
+			);
+		}
+		if (changes.length > 0) {
+			await runQuery(
+				'INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)',
+				[item.id, changes.join(' | ')]
+			);
+		}
+		if (client) await client.query('COMMIT');
+	} catch (error) {
+		if (client) await client.query('ROLLBACK');
+		throw error;
+	} finally {
+		client?.release();
 	}
 }
 
