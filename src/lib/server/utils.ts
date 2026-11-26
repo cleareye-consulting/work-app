@@ -17,7 +17,9 @@ export const workItemTypes : workItemTypesList =  {
 		parentTypes: ['_CLIENT_', 'PROJECT'],
 	},
 	FEATURE: {
-		customFields: [],
+		customFields: [
+			{name: 'roadmap', type: 'string', multiline: true}
+		],
 		parentTypes: ['PROJECT'],
 	},
 	EPIC: {
