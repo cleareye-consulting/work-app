@@ -7,6 +7,7 @@ vi.mock('$lib/server/repositories/workItemContextRepository', () => ({
 }));
 vi.mock('$lib/server/repositories/workItemRepository', () => ({
 	workItemExists: vi.fn(),
+	addWorkItem: vi.fn(),
 	addWorkItemDocument: vi.fn(),
 	getWorkItemById: vi.fn(),
 	getChildWorkItems: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('$lib/server/repositories/clientRepository', () => ({ getClientName: vi.
 
 import { getWorkItemContext } from '$lib/server/repositories/workItemContextRepository';
 import {
+	addWorkItem,
 	addWorkItemDocument,
 	getChildWorkItems,
 	getWorkItemById,
@@ -29,6 +31,7 @@ import { POST } from './+server';
 
 const mockedGetContext = vi.mocked(getWorkItemContext);
 const mockedWorkItemExists = vi.mocked(workItemExists);
+const mockedAddItem = vi.mocked(addWorkItem);
 const mockedAddDocument = vi.mocked(addWorkItemDocument);
 const mockedGetItem = vi.mocked(getWorkItemById);
 const mockedGetChildren = vi.mocked(getChildWorkItems);
@@ -66,12 +69,128 @@ async function result(response: Response) {
 beforeEach(() => {
 	mockedGetContext.mockReset();
 	mockedWorkItemExists.mockReset();
+	mockedAddItem.mockReset();
 	mockedAddDocument.mockReset();
 	mockedGetItem.mockReset();
 	mockedGetChildren.mockReset();
 	mockedUpdateItem.mockReset();
 	mockedGenerateSummary.mockReset();
 	mockedGetClientName.mockReset();
+});
+
+it.each([
+	['STORY', 'FEATURE'],
+	['NFR', 'PROJECT'],
+	['BUG', 'STORY']
+])('creates a %s under an allowed %s parent', async (type, parentType) => {
+	mockedWorkItemExists.mockResolvedValue(true);
+	mockedGetItem.mockResolvedValue({
+		id: 7,
+		name: 'Parent',
+		type: parentType,
+		status: 'NEW',
+		clientId: 3,
+		clientName: 'Client',
+		customFields: {}
+	});
+	mockedAddItem.mockResolvedValue(42);
+	const response = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'add_work_item', {
+				type,
+				parentId: 7,
+				name: 'New item',
+				description: 'Details'
+			})
+		} as never)
+	);
+	expect(response.result.isError).toBeFalsy();
+	expect(mockedAddItem).toHaveBeenCalledWith({
+		name: 'New item',
+		description: 'Details',
+		type,
+		status: 'NEW',
+		clientId: 3,
+		clientName: 'Client',
+		parentId: 7,
+		customFields: {}
+	});
+	expect(JSON.parse(response.result.content[0].text)).toMatchObject({
+		workItemId: 42,
+		type,
+		clientId: 3,
+		parentId: 7,
+		url: '/work-items/42'
+	});
+});
+
+it.each(['PROJECT', 'FEATURE', 'EPIC', 'TASK', 'ISSUE'])('rejects creation of %s', async (type) => {
+	const response = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'add_work_item', { type, parentId: 7, name: 'No' })
+		} as never)
+	);
+	expect(response.error ?? response.result?.isError).toBeTruthy();
+	expect(mockedAddItem).not.toHaveBeenCalled();
+});
+
+it('requires stories to be under features even when the shared mapping allows another parent', async () => {
+	mockedWorkItemExists.mockResolvedValue(true);
+	mockedGetItem.mockResolvedValue({
+		id: 7,
+		name: 'Project',
+		type: 'PROJECT',
+		status: 'NEW',
+		clientId: 3,
+		clientName: 'Client',
+		customFields: {}
+	});
+	const response = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'add_work_item', {
+				type: 'STORY',
+				parentId: 7,
+				name: 'No'
+			})
+		} as never)
+	);
+	expect(response.result.isError).toBe(true);
+	expect(mockedAddItem).not.toHaveBeenCalled();
+});
+
+it('rejects a missing parent and a disallowed parent type', async () => {
+	mockedWorkItemExists.mockResolvedValue(false);
+	const missing = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'add_work_item', {
+				type: 'BUG',
+				parentId: 999,
+				name: 'Bug'
+			})
+		} as never)
+	);
+	expect(missing.result.isError).toBe(true);
+	mockedWorkItemExists.mockResolvedValue(true);
+	mockedGetItem.mockResolvedValue({
+		id: 7,
+		name: 'NFR',
+		type: 'NFR',
+		status: 'NEW',
+		clientId: 3,
+		clientName: 'Client',
+		customFields: {}
+	});
+	const invalid = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'add_work_item', {
+				type: 'NFR',
+				parentId: 7,
+				name: 'NFR'
+			})
+		} as never)
+	);
+	expect(invalid.result.isError).toBe(true);
+	expect(mockedAddItem).not.toHaveBeenCalled();
 });
 
 it('updates a FEATURE roadmap and status while preserving its name and description', async () => {

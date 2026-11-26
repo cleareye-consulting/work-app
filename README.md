@@ -39,7 +39,11 @@ The app serves an MCP endpoint at `http://127.0.0.1:5173/mcp`. Its
 `get_work_item_context` tool accepts a work item ID and returns the item, its
 ancestor chain, all descendant work items, and documents, change events, and
 time entries for those items, including custom fields such as a FEATURE's
-`roadmap`. `update_work_item` accepts a work item ID and any combination of
+`roadmap`. `add_work_item` creates a `STORY`, `NFR`, or `BUG` beneath an existing
+parent. Stories are limited to FEATURE parents; NFRs and bugs follow the shared
+type-to-parent mapping. It derives the client from the parent, starts the item
+in `NEW`, and returns its ID. Use `update_work_item` to set custom fields after
+creation. `update_work_item` accepts a work item ID and any combination of
 `status`, `type`, `clientId`, `parentId` (set to `null` for a top-level item), and
 `customFields` (for example, `{ "roadmap": "## Next quarter" }`). Omitted fields
 are preserved; set a custom field to `null` to clear it. Name and description

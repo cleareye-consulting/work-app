@@ -11,6 +11,7 @@ import {
 import { z } from 'zod/v4';
 import { getWorkItemContext } from '$lib/server/repositories/workItemContextRepository';
 import {
+	addWorkItem,
 	addWorkItemDocument,
 	getChildWorkItems,
 	getWorkItemById,
@@ -41,6 +42,63 @@ const handler = createMcpHandler(() => {
 				};
 			}
 			return { content: [{ type: 'text', text: JSON.stringify(context) }] };
+		}
+	);
+	server.registerTool(
+		'add_work_item',
+		{
+			description:
+				'Create a STORY under a FEATURE, or an NFR or BUG under a parent allowed by the work item type rules. Starts in NEW status. Use update_work_item afterward to set custom fields.',
+			inputSchema: z.strictObject({
+				type: z.enum(['STORY', 'NFR', 'BUG']),
+				parentId: z.number().int().positive(),
+				name: z.string().trim().min(1).max(200),
+				description: z.string().max(200_000).optional()
+			}),
+			annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
+		},
+		async ({ type, parentId, name, description }) => {
+			if (!(await workItemExists(parentId))) {
+				return {
+					isError: true,
+					content: [{ type: 'text', text: `Parent work item ${parentId} not found.` }]
+				};
+			}
+			const parent = await getWorkItemById(parentId);
+			if (
+				!workItemTypes[type].parentTypes.includes(parent.type) ||
+				(type === 'STORY' && parent.type !== 'FEATURE')
+			) {
+				return {
+					isError: true,
+					content: [{ type: 'text', text: `${type} cannot be created under a ${parent.type}.` }]
+				};
+			}
+			const workItemId = await addWorkItem({
+				name,
+				description,
+				type,
+				status: 'NEW',
+				clientId: parent.clientId,
+				clientName: parent.clientName,
+				parentId,
+				customFields: {}
+			});
+			return {
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({
+							workItemId,
+							type,
+							status: 'NEW',
+							clientId: parent.clientId,
+							parentId,
+							url: `/work-items/${workItemId}`
+						})
+					}
+				]
+			};
 		}
 	);
 	server.registerTool(
