@@ -38,7 +38,14 @@ The project reads several environment variables for authentication, AWS/DynamoDB
 The app serves an MCP endpoint at `http://127.0.0.1:5173/mcp`. Its
 `get_work_item_context` tool accepts a work item ID and returns the item, its
 ancestor chain, all descendant work items, and documents, change events, and
-time entries for those items. `add_work_item_note` adds a Markdown document
+time entries for those items, including custom fields such as a FEATURE's
+`roadmap`. `update_work_item` accepts a work item ID and any combination of
+`status`, `type`, `clientId`, `parentId` (set to `null` for a top-level item), and
+`customFields` (for example, `{ "roadmap": "## Next quarter" }`). Omitted fields
+are preserved; set a custom field to `null` to clear it. Name and description
+cannot be edited through MCP. Type, status, custom field, and hierarchy values
+are validated before saving. Moving an item to another client moves its descendants
+and time entries with it. `add_work_item_note` adds a Markdown document
 to an existing work item from a title and content, generates its summary, and
 records a change event. The endpoint requires a bearer token; the browser
 continues to use Google sign-in.

@@ -7,19 +7,34 @@ vi.mock('$lib/server/repositories/workItemContextRepository', () => ({
 }));
 vi.mock('$lib/server/repositories/workItemRepository', () => ({
 	workItemExists: vi.fn(),
-	addWorkItemDocument: vi.fn()
+	addWorkItemDocument: vi.fn(),
+	getWorkItemById: vi.fn(),
+	getChildWorkItems: vi.fn(),
+	updateWorkItem: vi.fn()
 }));
 vi.mock('$lib/server/ai', () => ({ generateDocumentSummary: vi.fn() }));
+vi.mock('$lib/server/repositories/clientRepository', () => ({ getClientName: vi.fn() }));
 
 import { getWorkItemContext } from '$lib/server/repositories/workItemContextRepository';
-import { addWorkItemDocument, workItemExists } from '$lib/server/repositories/workItemRepository';
+import {
+	addWorkItemDocument,
+	getChildWorkItems,
+	getWorkItemById,
+	updateWorkItem,
+	workItemExists
+} from '$lib/server/repositories/workItemRepository';
 import { generateDocumentSummary } from '$lib/server/ai';
+import { getClientName } from '$lib/server/repositories/clientRepository';
 import { POST } from './+server';
 
 const mockedGetContext = vi.mocked(getWorkItemContext);
 const mockedWorkItemExists = vi.mocked(workItemExists);
 const mockedAddDocument = vi.mocked(addWorkItemDocument);
+const mockedGetItem = vi.mocked(getWorkItemById);
+const mockedGetChildren = vi.mocked(getChildWorkItems);
+const mockedUpdateItem = vi.mocked(updateWorkItem);
 const mockedGenerateSummary = vi.mocked(generateDocumentSummary);
+const mockedGetClientName = vi.mocked(getClientName);
 
 function request(
 	authorization?: string,
@@ -52,7 +67,145 @@ beforeEach(() => {
 	mockedGetContext.mockReset();
 	mockedWorkItemExists.mockReset();
 	mockedAddDocument.mockReset();
+	mockedGetItem.mockReset();
+	mockedGetChildren.mockReset();
+	mockedUpdateItem.mockReset();
 	mockedGenerateSummary.mockReset();
+	mockedGetClientName.mockReset();
+});
+
+it('updates a FEATURE roadmap and status while preserving its name and description', async () => {
+	mockedWorkItemExists.mockResolvedValue(true);
+	mockedGetItem.mockResolvedValue({
+		id: 42,
+		name: 'Feature name',
+		description: 'Human description',
+		type: 'FEATURE',
+		status: 'NEW',
+		clientId: 1,
+		clientName: 'Client',
+		parentId: 7,
+		customFields: { roadmap: 'Old plan' }
+	});
+	mockedGetContext.mockResolvedValue({
+		workItem: { id: 7, type: 'PROJECT', clientId: 1 },
+		ancestors: []
+	} as never);
+	const response = await POST({
+		request: request(`Bearer ${token}`, 'update_work_item', {
+			workItemId: 42,
+			status: 'PLANNING',
+			customFields: { roadmap: '## Next quarter\nShip reporting' }
+		})
+	} as never);
+	expect((await result(response)).result.isError).toBeFalsy();
+	expect(mockedUpdateItem).toHaveBeenCalledWith({
+		id: 42,
+		name: 'Feature name',
+		description: 'Human description',
+		type: 'FEATURE',
+		status: 'PLANNING',
+		clientId: 1,
+		clientName: 'Client',
+		parentId: 7,
+		customFields: { roadmap: '## Next quarter\nShip reporting' }
+	});
+});
+
+it('rejects changes to name and description and unknown custom fields', async () => {
+	const renamed = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'update_work_item', { workItemId: 42, name: 'Changed' })
+		} as never)
+	);
+	expect(renamed.error ?? renamed.result?.isError).toBeTruthy();
+	const rewritten = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'update_work_item', {
+				workItemId: 42,
+				description: 'Changed'
+			})
+		} as never)
+	);
+	expect(rewritten.error ?? rewritten.result?.isError).toBeTruthy();
+	expect(mockedUpdateItem).not.toHaveBeenCalled();
+
+	mockedWorkItemExists.mockResolvedValue(true);
+	mockedGetItem.mockResolvedValue({
+		id: 42,
+		name: 'Feature',
+		type: 'FEATURE',
+		status: 'NEW',
+		clientId: 1,
+		clientName: 'Client',
+		parentId: 7,
+		customFields: {}
+	});
+	mockedGetContext.mockResolvedValue({
+		workItem: { id: 7, type: 'PROJECT', clientId: 1 },
+		ancestors: []
+	} as never);
+	const unknown = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'update_work_item', {
+				workItemId: 42,
+				customFields: { secret: 'value' }
+			})
+		} as never)
+	);
+	expect(unknown.result.isError).toBe(true);
+	expect(mockedUpdateItem).not.toHaveBeenCalled();
+});
+
+it('rejects a parent change that would create a cycle', async () => {
+	mockedWorkItemExists.mockResolvedValue(true);
+	mockedGetItem.mockResolvedValue({
+		id: 42,
+		name: 'Project',
+		type: 'PROJECT',
+		status: 'NEW',
+		clientId: 1,
+		clientName: 'Client',
+		customFields: {}
+	});
+	mockedGetContext.mockResolvedValue({
+		workItem: { id: 99, type: 'PROJECT', clientId: 1 },
+		ancestors: [{ id: 42 }]
+	} as never);
+	const response = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'update_work_item', { workItemId: 42, parentId: 99 })
+		} as never)
+	);
+	expect(response.result.isError).toBe(true);
+	expect(mockedUpdateItem).not.toHaveBeenCalled();
+});
+
+it('moves a top-level work item to another client', async () => {
+	mockedWorkItemExists.mockResolvedValue(true);
+	mockedGetItem.mockResolvedValue({
+		id: 42,
+		name: 'Project',
+		type: 'PROJECT',
+		status: 'NEW',
+		clientId: 1,
+		clientName: 'Old client',
+		customFields: {}
+	});
+	mockedGetClientName.mockResolvedValue('New client');
+	const response = await result(
+		await POST({
+			request: request(`Bearer ${token}`, 'update_work_item', { workItemId: 42, clientId: 2 })
+		} as never)
+	);
+	expect(response.result.isError).toBeFalsy();
+	expect(mockedUpdateItem).toHaveBeenCalledWith(
+		expect.objectContaining({
+			name: 'Project',
+			clientId: 2,
+			clientName: 'New client'
+		})
+	);
 });
 
 it('rejects missing and invalid tokens before reading work data', async () => {
