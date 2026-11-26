@@ -33,6 +33,42 @@ The project reads several environment variables for authentication, AWS/DynamoDB
 - Unit tests: `pnpm test:unit` (Vitest)
 - End-to-end: `pnpm test:e2e` (Playwright)
 
+## Local MCP access for coding agents
+
+The app serves an MCP endpoint at `http://127.0.0.1:5173/mcp`. Its
+`get_work_item_context` tool accepts a work item ID and returns the item, its
+ancestor chain, all descendant work items, and documents, change events, and
+time entries for those items. `add_work_item_note` adds a Markdown document
+to an existing work item from a title and content, generates its summary, and
+records a change event. The endpoint requires a bearer token; the browser
+continues to use Google sign-in.
+
+When you are ready to enable it, generate a token with `openssl rand -hex 32`.
+Put that value in this app's ignored `.env` file as `WORK_APP_MCP_TOKEN=...`,
+then set `WORK_APP_MCP_TOKEN` to the same value in the environment that launches
+Codex or Claude Code. The endpoint is unavailable until a token of at least 32
+characters is configured. Keep the token out of client repositories and checked-in
+agent configuration. Restart or recreate the app after changing `.env`.
+
+For Codex, add this to your local `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.work_app]
+url = "http://127.0.0.1:5173/mcp"
+bearer_token_env_var = "WORK_APP_MCP_TOKEN"
+```
+
+For Claude Code, add a user-scoped server with a literal environment-variable
+reference (the single quotes prevent your shell from expanding it now):
+
+```sh
+claude mcp add-json work-app '{"type":"http","url":"http://127.0.0.1:5173/mcp","headers":{"Authorization":"Bearer ${WORK_APP_MCP_TOKEN}"}}' --scope user
+```
+
+`codex mcp list` and `claude mcp list` show whether each client connected.
+The Docker Compose configuration publishes the app and database ports only on
+the host's loopback interface.
+
 ## Notes for contributors
 
 - Code style: Prettier + Tailwind + ESLint. Run `pnpm format` and `pnpm lint` before opening PRs.

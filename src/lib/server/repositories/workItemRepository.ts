@@ -1,5 +1,5 @@
 import type { WorkItemDocument, WorkItem, WorkItemChangeEvent } from '../../../types';
-import { query } from '$lib/server/db';
+import { pool, query } from '$lib/server/db';
 
 export async function addWorkItem(item: WorkItem): Promise<number> {
 	const res = await query<{ id: number }>(
@@ -18,18 +18,26 @@ export async function addWorkItem(item: WorkItem): Promise<number> {
 }
 
 export async function addWorkItemDocument(item: WorkItemDocument): Promise<number> {
-	const res = await query<{ id: number }>(
-		'INSERT INTO work_item_documents (work_item_id, name, content_type, content, summary) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-		[item.workItemId, item.name, item.type, item.content, item.summary ?? '']
-	);
-	const newId = res.rows[0].id;
-
-	await query(
-		'INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)',
-		[item.workItemId, `Document added: ${item.name}`]
-	);
-
-	return newId;
+	const client = await pool.connect();
+	try {
+		await client.query('BEGIN');
+		const res = await client.query<{ id: number }>(
+			'INSERT INTO work_item_documents (work_item_id, name, content_type, content, summary) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+			[item.workItemId, item.name, item.type, item.content, item.summary ?? '']
+		);
+		const newId = res.rows[0].id;
+		await client.query(
+			'INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)',
+			[item.workItemId, `Document added: ${item.name}`]
+		);
+		await client.query('COMMIT');
+		return newId;
+	} catch (error) {
+		await client.query('ROLLBACK');
+		throw error;
+	} finally {
+		client.release();
+	}
 }
 
 export async function updateWorkItem(item: WorkItem) {
@@ -76,17 +84,18 @@ export async function updateWorkItemDocument(item: WorkItemDocument) {
 		[item.name, item.type, item.content, item.summary ?? '', item.id, item.workItemId]
 	);
 
-	await query(
-		'INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)',
-		[item.workItemId, `Document updated: ${item.name}`]
-	);
+	await query('INSERT INTO work_item_changes (work_item_id, summary_of_changes) VALUES ($1, $2)', [
+		item.workItemId,
+		`Document updated: ${item.name}`
+	]);
 }
 
 export async function getTopLevelWorkItemsForClient(
 	clientId: number,
 	statuses: string[] | null
 ): Promise<WorkItem[]> {
-	let sql = 'SELECT id, name, work_item_type, status, client_id, parent_id FROM work_items WHERE client_id = $1 AND parent_id IS NULL';
+	let sql =
+		'SELECT id, name, work_item_type, status, client_id, parent_id FROM work_items WHERE client_id = $1 AND parent_id IS NULL';
 	const params: (number | string[])[] = [clientId];
 
 	if (statuses && statuses.length > 0) {
@@ -126,7 +135,7 @@ export async function getChildWorkItems(
 		FROM work_items
 		WHERE parent_id = $1 AND ($2::text[] IS NULL OR status = ANY($2))
 		ORDER BY NAME;`;
-	const params= [parent.id, statuses?.length ? statuses : null];
+	const params = [parent.id, statuses?.length ? statuses : null];
 
 	const res = await query<{
 		id: number;
@@ -147,6 +156,11 @@ export async function getChildWorkItems(
 		parentId: row.parent_id ?? undefined,
 		customFields: {}
 	}));
+}
+
+export async function workItemExists(id: number): Promise<boolean> {
+	const res = await query('SELECT 1 FROM work_items WHERE id = $1', [id]);
+	return res.rows.length > 0;
 }
 
 export async function getWorkItemById(id: number): Promise<WorkItem> {
